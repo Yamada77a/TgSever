@@ -119,6 +119,8 @@ func canonicalStickerMaterialMime(mimeType string) string {
 	switch strings.ToLower(strings.TrimSpace(mimeType)) {
 	case stickerMaterialMimeTGS:
 		return stickerMaterialMimeTGS
+	case "image/png":
+		return "image/png"
 	case stickerMaterialMimeWebP:
 		return stickerMaterialMimeWebP
 	case stickerMaterialMimeWebM:
