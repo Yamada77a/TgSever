@@ -21,6 +21,9 @@ func (r *Router) onMessagesCreateForumTopic(ctx context.Context, req *tg.Message
 	if req.RandomID == 0 {
 		return nil, randomIDEmptyErr()
 	}
+	if _, private := req.Peer.(*tg.InputPeerUser); private {
+		return r.createPrivateForumTopicRPC(ctx, userID, req)
+	}
 	peer, err := r.forumTopicPeer(ctx, req.Peer)
 	if err != nil {
 		return nil, err
@@ -76,6 +79,9 @@ func (r *Router) onMessagesEditForumTopic(ctx context.Context, req *tg.MessagesE
 	}
 	if req.TopicID <= 0 || req.TopicID > domain.MaxMessageBoxID {
 		return nil, messageIDInvalidErr()
+	}
+	if _, private := req.Peer.(*tg.InputPeerUser); private {
+		return r.editPrivateForumTopicRPC(ctx, userID, req)
 	}
 	peer, err := r.forumTopicPeer(ctx, req.Peer)
 	if err != nil {
@@ -189,6 +195,9 @@ func (r *Router) onMessagesDeleteTopicHistory(ctx context.Context, req *tg.Messa
 	}
 	if req.TopMsgID <= 0 || req.TopMsgID > domain.MaxMessageBoxID {
 		return nil, messageIDInvalidErr()
+	}
+	if _, private := req.Peer.(*tg.InputPeerUser); private {
+		return r.deletePrivateForumTopicRPC(ctx, userID, req)
 	}
 	peer, err := r.forumTopicPeer(ctx, req.Peer)
 	if err != nil {

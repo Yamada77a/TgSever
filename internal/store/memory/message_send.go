@@ -71,6 +71,13 @@ func (s *MessageStore) SendPrivateText(ctx context.Context, req domain.SendPriva
 			return domain.SendPrivateTextResult{}, domain.ErrBotBroadcastReservation
 		}
 	}
+	if req.ReplyTo != nil && req.ReplyTo.Peer.Type == domain.PeerTypeChannel {
+		if s.replyChannels == nil {
+			return domain.SendPrivateTextResult{}, domain.ErrReplyMessageIDInvalid
+		}
+		s.replyChannels.mu.RLock()
+		defer s.replyChannels.mu.RUnlock()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res, err := s.sendPrivateTextLocked(req, fingerprint, nil)
@@ -358,6 +365,12 @@ func (s *MessageStore) resolveMemoryReplyLocked(req domain.SendPrivateTextReques
 	if err := domain.ValidateMessageReplyBounds(req.ReplyTo); err != nil {
 		return nil, nil, err
 	}
+	if (req.ReplyTo.ForumTopic || req.ReplyTo.TopMessageID > 0) && req.ReplyTo.Peer.ID != 0 && req.ReplyTo.Peer != (domain.Peer{Type: domain.PeerTypeUser, ID: req.RecipientUserID}) {
+		return s.resolvePrivateForumExternalReplyLocked(req)
+	}
+	if (req.ReplyTo.ForumTopic || req.ReplyTo.TopMessageID > 0) && (req.ReplyTo.Peer.ID == 0 || req.ReplyTo.Peer.Type == domain.PeerTypeUser) {
+		return s.resolvePrivateForumReplyLocked(req)
+	}
 	if req.ReplyTo.StoryID > 0 {
 		// story 回复（评论）：无源消息可查；story 作者就是会话对端，双盒同持。
 		reply := &domain.MessageReply{
@@ -370,6 +383,13 @@ func (s *MessageStore) resolveMemoryReplyLocked(req domain.SendPrivateTextReques
 	if peer.ID == 0 {
 		peer = domain.Peer{Type: domain.PeerTypeUser, ID: req.RecipientUserID}
 	}
+	if peer.Type == domain.PeerTypeChannel {
+		if s.replyChannels == nil {
+			return nil, nil, domain.ErrReplyMessageIDInvalid
+		}
+		reply, err := s.replyChannels.externalChannelReplyLocked(req.SenderUserID, req.ReplyTo)
+		return reply, domain.CloneMessageReply(reply), err
+	}
 	if peer.Type != domain.PeerTypeUser || req.ReplyTo.External != nil {
 		return nil, nil, domain.ErrReplyMessageIDInvalid
 	}
@@ -380,21 +400,39 @@ func (s *MessageStore) resolveMemoryReplyLocked(req domain.SendPrivateTextReques
 			break
 		}
 	}
-	if target.ID == 0 {
+	if target.ID == 0 || target.Deleted {
+		if req.ReplyTo.AllowMissing && peer.ID == req.RecipientUserID && req.ReplyTo.TopMessageID == 0 && !req.ReplyTo.ForumTopic {
+			return nil, nil, nil
+		}
 		return nil, nil, domain.ErrReplyMessageIDInvalid
+	}
+	if err := domain.ValidateBotAPIReplySource(req.ReplyTo, target); err != nil {
+		return nil, nil, err
+	}
+	topicID := domain.PrivateForumMessageTopic(target)
+	if peer.ID == req.RecipientUserID && topicID == 0 {
+		if _, err := s.resolvePrivateForumTopicLocked(req.SenderUserID, req.RecipientUserID, target.ID); err == nil {
+			topicID = target.ID
+		}
+	}
+	if peer.ID == req.RecipientUserID && topicID > 0 {
+		req.ReplyTo = cloneMessageReply(req.ReplyTo)
+		req.ReplyTo.TopMessageID = topicID
+		req.ReplyTo.ForumTopic = true
+		return s.resolvePrivateForumReplyLocked(req)
 	}
 	senderReply := cloneMessageReply(req.ReplyTo)
 	senderReply.MessageID = target.ID
 	senderReply.Peer = peer
 	if peer.ID != req.RecipientUserID {
-		protected := target.NoForwards || (target.Media != nil && target.Media.TTLSeconds > 0)
+		protected := target.NoForwards || (target.Media != nil && (target.Media.TTLSeconds > 0 || target.Media.PaidMedia != nil))
 		if pair, ok := noForwardsPair(req.SenderUserID, peer.ID); ok {
 			protected = protected || s.privateNoForwards[pair].Enabled()
 		}
 		if protected {
 			return nil, nil, domain.ErrChatForwardsRestricted
 		}
-		if err := domain.ValidateExternalReplyQuote(req.ReplyTo, target.Body); err != nil {
+		if err := domain.ValidateBotAPIReplySource(req.ReplyTo, target); err != nil {
 			return nil, nil, err
 		}
 		var err error
