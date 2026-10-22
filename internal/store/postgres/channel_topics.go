@@ -408,7 +408,7 @@ func (s *ChannelStore) DeleteForumTopicHistory(ctx context.Context, req domain.D
 	if err != nil {
 		return domain.DeleteChannelHistoryResult{}, err
 	}
-	if !canManageForumTopic(channel, member, topic, req.UserID, 0) && !canDeleteAnyChannelMessage(member) {
+	if !canManageForumTopic(channel, member, topic, req.UserID, 0) && !domain.CanDeleteAnyChannelMessage(member) {
 		return domain.DeleteChannelHistoryResult{}, domain.ErrChannelAdminRequired
 	}
 	rows, err := tx.Query(ctx, `
@@ -435,7 +435,7 @@ LIMIT `, req.ChannelID, req.TopicID, domain.MaxDeleteHistoryBatch)
 	}
 	rows.Close()
 	audit := domain.UserDeletionAudit(domain.DeletionSourceTopicHistory, req.UserID, req.OriginAuthKeyID, req.OriginSessionID)
-	deleted, event, channel, err := s.deleteChannelMessagesTx(ctx, tx, channel, member, ids, req.UserID, req.Date, audit)
+	deleted, event, channel, err := s.deleteChannelMessagesTx(ctx, tx, channel, member, ids, req.UserID, req.Date, audit, false)
 	if err != nil {
 		return domain.DeleteChannelHistoryResult{}, err
 	}

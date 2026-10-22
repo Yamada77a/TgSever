@@ -1564,6 +1564,8 @@ func (s *Service) EditInlineBotMessage(ctx context.Context, botID int64, req dom
 }
 
 // DeleteMessages deletes a bounded set of channel/supergroup messages.
+// SkipUnauthorized is an explicit application opt-in; MTProto callers leave it
+// false so authorization failures reject the entire batch.
 func (s *Service) DeleteMessages(ctx context.Context, userID int64, req domain.DeleteChannelMessagesRequest) (domain.DeleteChannelMessagesResult, error) {
 	if s == nil || s.channels == nil || userID == 0 {
 		return domain.DeleteChannelMessagesResult{}, domain.ErrChannelInvalid
