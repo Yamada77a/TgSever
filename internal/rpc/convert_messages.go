@@ -59,7 +59,7 @@ func tgMessage(m domain.Message) tg.MessageClass {
 		return msg
 	}
 	msg := &tg.Message{
-		Out:         m.Out,
+		Out:         m.Out && m.GuestChatViaFrom.ID == 0,
 		MediaUnread: m.MediaUnread,
 		ID:          m.ID,
 		PeerID:      peer,
@@ -100,6 +100,11 @@ func tgMessage(m domain.Message) tg.MessageClass {
 	}
 	if m.ViaBotID != 0 {
 		msg.SetViaBotID(m.ViaBotID)
+	}
+	if m.GuestChatViaFrom.ID != 0 {
+		if caller := tgPeer(m.GuestChatViaFrom); caller != nil {
+			msg.SetGuestchatViaFrom(caller)
+		}
 	}
 	if m.GroupedID != 0 {
 		msg.SetGroupedID(m.GroupedID)

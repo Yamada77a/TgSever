@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"telesrv/internal/app/guestauth"
 	"telesrv/internal/app/userprojection"
 	"telesrv/internal/domain"
 	"telesrv/internal/store"
@@ -152,6 +153,20 @@ func (s *Service) SendPrivateText(ctx context.Context, userID int64, req domain.
 	}
 	if req.SenderUserID != userID {
 		return domain.SendPrivateTextResult{}, domain.ErrAuthenticatedScopeInvalid
+	}
+	if req.GuestBotID != 0 {
+		return domain.SendPrivateTextResult{}, domain.ErrAuthenticatedScopeInvalid
+	}
+	botID, err := guestauth.Take(ctx, userID, domain.Peer{Type: domain.PeerTypeUser, ID: req.RecipientUserID})
+	if err != nil {
+		return domain.SendPrivateTextResult{}, err
+	}
+	if botID != 0 {
+		if err := s.ensureCanSend(ctx, botID); err != nil {
+			return domain.SendPrivateTextResult{}, err
+		}
+		req.GuestBotID = botID
+		req.ViaBotID = botID
 	}
 	return s.sendPrivateText(ctx, userID, req)
 }

@@ -856,6 +856,7 @@ func run(logger *zap.Logger) error {
 	defer bootstrapUpdateStore.Close()
 	botAPIUpdateStore := postgres.NewBotAPIUpdateStore(pool)
 	botCallbackStore := redisstore.NewBotCallbackRegistryStore(rdb)
+	botGuestQueryStore := postgres.NewBotGuestQueryStore(pool)
 	messageDraftStore := redisstore.NewMessageDraftStore(rdb)
 	ephemeralStore := redisstore.NewEphemeralMessageStore(rdb)
 	ephemeralReportStore := postgres.NewEphemeralReportStore(pool)
@@ -1141,8 +1142,8 @@ func run(logger *zap.Logger) error {
 	}
 
 	botStore := postgres.NewBotStore(pool)
-	botCommerceStore := postgres.NewBotCommerceStore(pool)
 	gamesPassportStore := postgres.NewGamesPassportStore(pool)
+	botCommerceStore := postgres.NewBotCommerceStore(pool)
 	// userCache 与 users 服务共享同一实例：bot 元数据写入（version bump）后必须
 	// 失效缓存，否则 TTL 内 getUsers 回旧 first_name/旧 bot_info_version。
 	userCache := redisstore.NewUserCache(rdb, redisstore.DefaultUserCacheTTL)
@@ -1216,8 +1217,10 @@ func run(logger *zap.Logger) error {
 		botsapp.WithStickerSetCreator(filesService),
 		botsapp.WithGifCatalog(filesService),
 		botsapp.WithUserStickerSets(accountService),
-		botsapp.WithPaidBroadcast(botCommerceStore),
 		botsapp.WithGamesPassportStore(gamesPassportStore),
+		botsapp.WithGuestQueries(botGuestQueryStore),
+		botsapp.WithInlineFeedback(botGuestQueryStore),
+		botsapp.WithPaidBroadcast(botCommerceStore),
 		botsapp.WithTelegramLogin(telegramLoginService),
 		botsapp.WithGramsrvOperatorBot(cfg.GramsrvBotChatIDs, adminService),
 		botsapp.WithDialogRateLimiter(rateLimiter, cfg.VerificationBotRateLimit, cfg.VerificationBotRateWindow),
@@ -1648,7 +1651,7 @@ func run(logger *zap.Logger) error {
 		messageapp.WithReadModelVersions(readModelVersionStore),
 		messageapp.WithBotResponder(botsService),
 		messageapp.WithSendPermissionChecker(adminService),
-		// Share one unprojected recipient lookup for tombstones and bot access.
+		// Access settings are read live; the recipient probe also rejects tombstones.
 		messageapp.WithBotAccessChecker(botsService, userStore),
 		messageapp.WithBusinessAutomation(passwordStore, businessAutomationOptions...),
 	)
@@ -2017,9 +2020,11 @@ func run(logger *zap.Logger) error {
 		BootstrapUpdates:             bootstrapUpdateStore,
 		BotAPIUpdates:                botAPIUpdateStore,
 		BotCallbacks:                 botCallbackStore,
+		GamesPassport:                gamesPassportStore,
 		BotCommerce:                  botCommerceStore,
 		BotBroadcast:                 botCommerceStore,
-		GamesPassport:                gamesPassportStore,
+		BotGuestQueries:              botGuestQueryStore,
+		BotInlineFeedback:            botGuestQueryStore,
 		PushDevices:                  pushDeviceStore,
 		Contacts:                     contactsService,
 		Dialogs:                      dialogsService,

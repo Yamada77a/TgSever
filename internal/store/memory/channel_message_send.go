@@ -77,6 +77,16 @@ func (s *ChannelStore) sendChannelMessageLocked(req domain.SendChannelMessageReq
 	if err != nil {
 		return domain.SendChannelMessageResult{}, err
 	}
+	if req.GuestBotID != 0 {
+		if !channel.Megagroup || channel.Broadcast || req.SendAs != nil {
+			return domain.SendChannelMessageResult{}, domain.ErrChannelWriteForbidden
+		}
+		if bot, exists := s.members[req.ChannelID][req.GuestBotID]; exists {
+			if bot.Status == domain.ChannelMemberBanned || bot.Status == domain.ChannelMemberKicked || domain.ChannelBannedRightsBlockMessage(req, channel, bot, 0) {
+				return domain.SendChannelMessageResult{}, domain.ErrChannelWriteForbidden
+			}
+		}
+	}
 	if req.SendAs != nil && req.SendAs.Type == domain.PeerTypeChannel {
 		if s.senderIdentityBannedLocked(req.ChannelID, req.SendAs.ID) {
 			return domain.SendChannelMessageResult{}, domain.ErrChannelSenderBanned
@@ -171,7 +181,7 @@ func (s *ChannelStore) sendChannelMessageLocked(req domain.SendChannelMessageReq
 		ID:                msgID,
 		RandomID:          req.RandomID,
 		SenderUserID:      req.UserID,
-		From:              domain.Peer{Type: domain.PeerTypeUser, ID: req.UserID},
+		From:              domain.Peer{Type: domain.PeerTypeUser, ID: domain.GuestSenderUserID(req.UserID, req.GuestBotID)},
 		Date:              req.Date,
 		Post:              channel.Broadcast,
 		ShowMessageSender: channel.Broadcast && channel.SignatureProfiles && sendAs != nil && !(sendAs.Type == domain.PeerTypeChannel && sendAs.ID == channel.ID),
@@ -192,6 +202,9 @@ func (s *ChannelStore) sendChannelMessageLocked(req domain.SendChannelMessageReq
 		Action:            cloneChannelMessageAction(req.Action),
 		FromBoostsApplied: fromBoostsApplied,
 		Pts:               pts,
+	}
+	if req.GuestBotID != 0 {
+		msg.GuestChatViaFrom = domain.GuestChatPeer(req.UserID)
 	}
 	msg.Replies = s.channelMessageRepliesLocked(req.UserID, req.ChannelID, msg)
 	var sendSnapshot []byte

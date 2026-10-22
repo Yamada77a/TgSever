@@ -78,13 +78,15 @@ Bot Settings
 /revoke - revoke bot access token
 /setinline - toggle inline mode
 /setinlinegeo - toggle inline location requests
-/setinlinefeedback - change inline feedback settings
+/setinlinefeedback @your_bot 0..100 - configure chosen-result feedback
 /setjoingroups - can your bot be added to groups?
 /setprivacy - toggle privacy mode in groups
 /paidbroadcast @your_bot on|off - manage paid broadcasts
+/setguest @your_bot enable|disable - configure guest mentions
+/setmanager @your_bot on|off - allow managed bot creation
 
 Games
-/newgame - create a game for one of your bots
+/newgame - create a game for a bot
 
 Telegram Passport
 /setpassportkey - set a bot's Passport public key
@@ -267,6 +269,12 @@ func (s *Service) handleBotFather(ctx context.Context, userID int64, text string
 	if reply, handled := s.handlePaidBroadcastBotFather(ctx, userID, text); handled {
 		return reply
 	}
+	if reply, handled := s.handleGuestBotFather(ctx, userID, text); handled {
+		return reply
+	}
+	if reply, handled := s.handleInlineFeedbackBotFather(ctx, userID, text); handled {
+		return reply
+	}
 	text = strings.TrimSpace(text)
 	state, found, err := s.bots.GetBotChatState(ctx, domain.BotFatherUserID, userID)
 	if err != nil {
@@ -429,9 +437,6 @@ func (s *Service) handleBotFatherCommand(ctx context.Context, userID int64, cmd 
 		return s.startBotPicker(ctx, userID, cmd)
 	case "confirm":
 		return s.handleBotFatherConfirmCommand(ctx, userID)
-	case botFatherCmdSetInlineFB:
-		_ = s.bots.DeleteBotChatState(ctx, domain.BotFatherUserID, userID)
-		return botReply{Text: "Inline feedback settings are not supported yet. Use /setinline to enable or disable inline mode."}
 	case botFatherCmdSetUserPic:
 		_ = s.bots.DeleteBotChatState(ctx, domain.BotFatherUserID, userID)
 		return botReply{Text: "Sorry, changing a bot's profile photo is not supported on this server yet. Send /help for a list of commands."}

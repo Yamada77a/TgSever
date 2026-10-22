@@ -432,6 +432,7 @@ func apiMessage(msg domain.Message, users []domain.User, channelLists ...[]domai
 			out["sender_business_bot"] = apiUser(bot)
 		}
 	}
+	projectGuestCaller(msg, out, userByID, channelByID)
 	if msg.Peer.Type == domain.PeerTypeChannel {
 		if channel, ok := channelByID[msg.Peer.ID]; ok {
 			describeChannelChat(out["chat"].(map[string]any), channel)

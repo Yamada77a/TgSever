@@ -41,6 +41,7 @@ type privateSendFingerprintPayload struct {
 	Forward              *domain.MessageForward     `json:"forward,omitempty"`
 	TTLPeriod            int                        `json:"ttl_period"`
 	ViaBotID             int64                      `json:"via_bot_id"`
+	GuestBotID           int64                      `json:"guest_bot_id,omitempty"`
 	BusinessConnectionID string                     `json:"business_connection_id,omitempty"`
 	BusinessBotID        int64                      `json:"business_bot_id,omitempty"`
 	GroupedID            int64                      `json:"grouped_id"`
@@ -64,6 +65,7 @@ type channelSendFingerprintPayload struct {
 	ReplyAllowMissing bool                         `json:"reply_allow_missing,omitempty"`
 	Forward           *domain.MessageForward       `json:"forward,omitempty"`
 	ViaBotID          int64                        `json:"via_bot_id"`
+	GuestBotID        int64                        `json:"guest_bot_id,omitempty"`
 	GroupedID         int64                        `json:"grouped_id"`
 	ReplyMarkup       *domain.MessageReplyMarkup   `json:"reply_markup"`
 	RichMessage       *domain.MessageRichMessage   `json:"rich_message"`
@@ -73,19 +75,21 @@ type channelSendFingerprintPayload struct {
 }
 
 type monoforumSendFingerprintPayload struct {
-	Version           int                    `json:"version"`
-	ChannelID         int64                  `json:"channel_id"`
-	SavedPeer         domain.Peer            `json:"saved_peer"`
-	Message           string                 `json:"message"`
-	Entities          []domain.MessageEntity `json:"entities"`
-	Media             *domain.MessageMedia   `json:"media"`
-	ReplyTo           *domain.MessageReply   `json:"reply_to"`
-	ReplyAllowMissing bool                   `json:"reply_allow_missing,omitempty"`
-	Forward           *domain.MessageForward `json:"forward,omitempty"`
-	Silent            bool                   `json:"silent"`
-	NoForwards        bool                   `json:"noforwards"`
-	SuggestedPost     *domain.SuggestedPost  `json:"suggested_post,omitempty"`
-	AllowPaidStars    int64                  `json:"allow_paid_stars"`
+	Version           int                        `json:"version"`
+	ChannelID         int64                      `json:"channel_id"`
+	SavedPeer         domain.Peer                `json:"saved_peer"`
+	Message           string                     `json:"message"`
+	Entities          []domain.MessageEntity     `json:"entities"`
+	Media             *domain.MessageMedia       `json:"media"`
+	ReplyTo           *domain.MessageReply       `json:"reply_to"`
+	ReplyAllowMissing bool                       `json:"reply_allow_missing,omitempty"`
+	ReplyMarkup       *domain.MessageReplyMarkup `json:"reply_markup,omitempty"`
+	RichMessage       *domain.MessageRichMessage `json:"rich_message,omitempty"`
+	Forward           *domain.MessageForward     `json:"forward,omitempty"`
+	Silent            bool                       `json:"silent"`
+	NoForwards        bool                       `json:"noforwards"`
+	SuggestedPost     *domain.SuggestedPost      `json:"suggested_post,omitempty"`
+	AllowPaidStars    int64                      `json:"allow_paid_stars"`
 }
 
 // PrivateSendFingerprint returns a SHA-256 fingerprint of the original send
@@ -111,6 +115,7 @@ func PrivateSendFingerprint(req domain.SendPrivateTextRequest) ([]byte, error) {
 		Forward:              req.Forward,
 		TTLPeriod:            req.TTLPeriod,
 		ViaBotID:             req.ViaBotID,
+		GuestBotID:           req.GuestBotID,
 		BusinessConnectionID: req.BusinessConnectionID,
 		BusinessBotID:        req.BusinessBotID,
 		GroupedID:            req.GroupedID,
@@ -146,6 +151,7 @@ func ChannelSendFingerprint(req domain.SendChannelMessageRequest) ([]byte, error
 		ReplyAllowMissing: req.ReplyTo != nil && req.ReplyTo.AllowMissing,
 		Forward:           req.Forward,
 		ViaBotID:          req.ViaBotID,
+		GuestBotID:        req.GuestBotID,
 		GroupedID:         req.GroupedID,
 		ReplyMarkup:       req.ReplyMarkup,
 		RichMessage:       req.RichMessage,
@@ -179,6 +185,8 @@ func MonoforumSendFingerprint(req domain.SendMonoforumMessageRequest) ([]byte, e
 		Media:             req.Media,
 		ReplyTo:           req.ReplyTo,
 		ReplyAllowMissing: req.ReplyTo != nil && req.ReplyTo.AllowMissing,
+		ReplyMarkup:       req.ReplyMarkup,
+		RichMessage:       req.RichMessage,
 		Forward:           req.Forward,
 		Silent:            req.Silent,
 		NoForwards:        req.NoForwards,
