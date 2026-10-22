@@ -811,6 +811,35 @@ func apiMessageMedia(media *domain.MessageMedia, users map[int64]domain.User, ch
 			return nil
 		}
 		return map[string]any{"poll": apiPoll(*media.Poll, users)}
+	case domain.MessageMediaKindTodo:
+		if media.Todo == nil {
+			return nil
+		}
+		todo := media.Todo
+		completed := make(map[int]domain.MessageTodoCompletion, len(todo.Completions))
+		for _, completion := range todo.Completions {
+			completed[completion.ID] = completion
+		}
+		tasks := make([]map[string]any, 0, len(todo.Items))
+		for _, item := range todo.Items {
+			task := map[string]any{"id": item.ID, "text": item.Title}
+			if entities := apiMessageEntities(item.Entities, users); len(entities) > 0 {
+				task["text_entities"] = entities
+			}
+			if completion, ok := completed[item.ID]; ok {
+				user := users[completion.CompletedBy]
+				user.ID = completion.CompletedBy
+				task["completed_by_user"] = apiUser(user)
+				task["completion_date"] = completion.Date
+			}
+			tasks = append(tasks, task)
+		}
+		checklist := map[string]any{"title": todo.Title, "tasks": tasks,
+			"others_can_add_tasks": todo.OthersCanAppend, "others_can_mark_tasks_as_done": todo.OthersCanComplete}
+		if entities := apiMessageEntities(todo.TitleEntities, users); len(entities) > 0 {
+			checklist["title_entities"] = entities
+		}
+		return map[string]any{"checklist": checklist}
 	case domain.MessageMediaKindService:
 		if media.ServiceAction == nil {
 			return nil
