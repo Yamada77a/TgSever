@@ -1096,7 +1096,7 @@ func run(logger *zap.Logger) error {
 		readModelVersionStore,
 		cfg.UserProjectionFactCacheMaxEntries,
 	)
-	go maintenance.NewRetentionWorker(dispatchOutboxStore, tempAuthKeyStore, logger.Named("maintenance").Named("retention"),
+	retentionWorker := maintenance.NewRetentionWorker(dispatchOutboxStore, tempAuthKeyStore, logger.Named("maintenance").Named("retention"),
 		cfg.UpdateEventRetention,
 		cfg.RetentionInterval,
 		cfg.RetentionBatch,
@@ -1109,8 +1109,7 @@ func run(logger *zap.Logger) error {
 		WithModerationRetention(moderationReportStore).
 		WithUserUpdateRetention(updateEventStore).
 		WithChannelUpdateRetention(channelStore).
-		WithOrphanAuthKeyRetention(authKeyStore, activeSessions, cfg.OrphanAuthKeyRetention).
-		Run(ctx)
+		WithOrphanAuthKeyRetention(authKeyStore, activeSessions, cfg.OrphanAuthKeyRetention)
 	go filesapp.NewUploadPartGCWorker(filesService, logger.Named("files").Named("upload_gc"),
 		cfg.UploadPartTTL,
 		cfg.UploadPartGCInterval,
@@ -1216,6 +1215,7 @@ func run(logger *zap.Logger) error {
 		botsapp.WithStickerSetCreator(filesService),
 		botsapp.WithGifCatalog(filesService),
 		botsapp.WithUserStickerSets(accountService),
+		botsapp.WithPaidBroadcast(botCommerceStore),
 		botsapp.WithTelegramLogin(telegramLoginService),
 		botsapp.WithGramsrvOperatorBot(cfg.GramsrvBotChatIDs, adminService),
 		botsapp.WithDialogRateLimiter(rateLimiter, cfg.VerificationBotRateLimit, cfg.VerificationBotRateWindow),
@@ -2264,6 +2264,7 @@ func run(logger *zap.Logger) error {
 		rpc.WithOutboxUpdateBuilder(router.BuildOutboxUpdates),
 		rpc.WithOutboxDeliveryObserver(pushObserver),
 	).Run(ctx)
+	go retentionWorker.WithBotSubscriptions(router).Run(ctx)
 	go rpc.NewBootstrapUpdateDispatcher(router, logger.Named("rpc").Named("bootstrap")).Run(ctx)
 	go rpc.NewWelcomeDeliveryDispatcher(router, welcomeMessageStore, logger.Named("rpc").Named("welcome-delivery")).Run(ctx)
 	go rpc.NewScheduledDispatcher(router, logger.Named("rpc").Named("scheduled")).Run(ctx)
@@ -2387,6 +2388,7 @@ func run(logger *zap.Logger) error {
 		CustomFragment:     customFragmentService,
 		GiftClaim:          giftClaimService,
 		GiftClaimTest:      giftClaimTestService,
+		InvoiceLinks:       web.NewInvoiceLinkHandler(botCommerceStore, cfg.PublicAppScheme),
 		MiniApps: web.NewConfiguredMiniAppsHandler(web.MiniAppsConfig{
 			AppName:  cfg.PublicAppName,
 			Bots:     botsService,

@@ -81,6 +81,7 @@ Bot Settings
 /setinlinefeedback - change inline feedback settings
 /setjoingroups - can your bot be added to groups?
 /setprivacy - toggle privacy mode in groups
+/paidbroadcast @your_bot on|off - manage paid broadcasts
 
 Telegram Login
 /setlogin - configure Telegram Login for a bot
@@ -250,6 +251,9 @@ var botFatherGlobalCommands = map[string]bool{
 }
 
 func (s *Service) handleBotFather(ctx context.Context, userID int64, text string) botReply {
+	if reply, handled := s.handlePaidBroadcastBotFather(ctx, userID, text); handled {
+		return reply
+	}
 	text = strings.TrimSpace(text)
 	state, found, err := s.bots.GetBotChatState(ctx, domain.BotFatherUserID, userID)
 	if err != nil {

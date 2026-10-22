@@ -737,6 +737,15 @@ func apiSuccessfulPayment(media *domain.MessageMedia) map[string]any {
 		"telegram_payment_charge_id": payment.ChargeID,
 		"provider_payment_charge_id": payment.ProviderChargeID,
 	}
+	if payment.SubscriptionExpirationDate > 0 {
+		out["subscription_expiration_date"] = payment.SubscriptionExpirationDate
+	}
+	if payment.IsRecurring {
+		out["is_recurring"] = true
+	}
+	if payment.IsFirstRecurring {
+		out["is_first_recurring"] = true
+	}
 	if payment.Payload != "" {
 		out["invoice_payload"] = payment.Payload
 	}

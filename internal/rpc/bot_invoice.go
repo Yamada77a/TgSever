@@ -62,13 +62,13 @@ func (r *Router) botAPISendInvoice(ctx context.Context, botID, chatID int64, tit
 	if utf8.RuneCountInString(description) > domain.BotInvoiceMaxDescription {
 		return domain.Message{}, errors.New("DESCRIPTION_INVALID")
 	}
-	if len(payload) > domain.BotInvoiceMaxPayload {
+	if len(payload) == 0 || len(payload) > domain.BotInvoiceMaxPayload {
 		return domain.Message{}, errors.New("PAYLOAD_INVALID")
 	}
 	// telesrv models no fiat checkout, so an invoice can only be settled in XTR.
 	// Reject anything else here instead of storing a price nothing can pay.
 	invoice := &domain.Invoice{
-		Title: title, Description: description, AmountStars: amount, StartParam: payload,
+		Title: title, Description: description, AmountStars: amount,
 	}
 	if !invoice.Valid() {
 		return domain.Message{}, errors.New("INVOICE_INVALID")

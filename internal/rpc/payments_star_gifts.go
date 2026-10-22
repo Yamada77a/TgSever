@@ -391,6 +391,9 @@ func (r *Router) onPaymentsGetPaymentForm(ctx context.Context, req *tg.PaymentsG
 	if err != nil {
 		return nil, internalErr()
 	}
+	if form, handled, err := r.commercePaymentForm(ctx, userID, req.Invoice); handled {
+		return form, err
+	}
 
 	switch inv := req.Invoice.(type) {
 	case *tg.InputInvoiceMessage:
@@ -612,6 +615,9 @@ func (r *Router) onPaymentsSendStarsForm(ctx context.Context, req *tg.PaymentsSe
 	if err != nil {
 		return nil, internalErr()
 	}
+	if result, handled, err := r.commercePaymentSettle(ctx, userID, &tg.PaymentsSendPaymentFormRequest{FormID: req.FormID, Invoice: req.Invoice}); handled {
+		return result, err
+	}
 
 	if msgInv, ok := req.Invoice.(*tg.InputInvoiceMessage); ok {
 		// A bot invoice is settled here too, not only over sendPaymentForm:
@@ -761,6 +767,9 @@ func (r *Router) onPaymentsSendPaymentForm(ctx context.Context, req *tg.Payments
 	userID, _, err := r.currentUserID(ctx)
 	if err != nil {
 		return nil, internalErr()
+	}
+	if result, handled, err := r.commercePaymentSettle(ctx, userID, req); handled {
+		return result, err
 	}
 	// A bot invoice is settled for real Stars, so it is handled before the
 	// dev-payment gates below: those require a local WebView provider and

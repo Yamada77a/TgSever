@@ -117,6 +117,15 @@ func (r *Router) botAPIOwnInvite(ctx context.Context, botID, chatID int64, link 
 	if invite.AdminUserID != botID {
 		return domain.ChannelInvite{}, errors.New("INVITE_LINK_NOT_OWNED")
 	}
+	if r.deps.BotCommerce != nil {
+		offer, lookupErr := r.deps.BotCommerce.SubscriptionInvite(ctx, invite.Hash)
+		if lookupErr == nil {
+			invite.SubscriptionPeriod = offer.SubscriptionPeriod
+			invite.SubscriptionPrice = offer.Amount
+		} else if !errors.Is(lookupErr, domain.ErrCommerceNotFound) {
+			return domain.ChannelInvite{}, lookupErr
+		}
+	}
 	return invite, nil
 }
 func (r *Router) BotAPIEditChatInviteLink(ctx context.Context, botID, chatID int64, link string, p domain.EditChannelInviteRequest) (domain.ChannelInvite, error) {
@@ -127,6 +136,9 @@ func (r *Router) BotAPIEditChatInviteLink(ctx context.Context, botID, chatID int
 	if invite.Permanent {
 		return domain.ChannelInvite{}, errors.New("INVITE_LINK_IS_PRIMARY")
 	}
+	if invite.SubscriptionPeriod > 0 && (p.HasExpireDate || p.HasUsageLimit || p.HasRequestNeeded) {
+		return domain.ChannelInvite{}, errors.New("BAD_REQUEST")
+	}
 	p.ChannelID = invite.ChannelID
 	p.Hash = invite.Hash
 	p.UserID = botID
@@ -136,6 +148,8 @@ func (r *Router) BotAPIEditChatInviteLink(ctx context.Context, botID, chatID int
 	if err != nil {
 		return domain.ChannelInvite{}, channelInviteErr(err)
 	}
+	res.Invite.SubscriptionPeriod = invite.SubscriptionPeriod
+	res.Invite.SubscriptionPrice = invite.SubscriptionPrice
 	r.invalidateRPCProjectionForChannel(invite.ChannelID)
 	return r.botAPIInviteURL(res.Invite), nil
 }
@@ -148,6 +162,8 @@ func (r *Router) BotAPIRevokeChatInviteLink(ctx context.Context, botID, chatID i
 	if err != nil {
 		return domain.ChannelInvite{}, channelInviteErr(err)
 	}
+	res.Invite.SubscriptionPeriod = invite.SubscriptionPeriod
+	res.Invite.SubscriptionPrice = invite.SubscriptionPrice
 	r.invalidateRPCProjectionForChannel(invite.ChannelID)
 	return r.botAPIInviteURL(res.Invite), nil
 }
