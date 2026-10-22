@@ -566,6 +566,10 @@ func (s *Service) CheckUsername(ctx context.Context, ownerUserID int64, username
 // CreateBot 创建一个新 bot 账号：users 行（is_bot, bot_info_version=1, 无 phone）+
 // bots 行（owner、token）。返回新账号与完整 token（唯一一次返回明文的途径之一）。
 func (s *Service) CreateBot(ctx context.Context, ownerUserID int64, name, username string) (domain.User, string, error) {
+	return s.createBot(ctx, ownerUserID, 0, name, username)
+}
+
+func (s *Service) createBot(ctx context.Context, ownerUserID, managerID int64, name, username string) (domain.User, string, error) {
 	if s == nil || s.users == nil || s.bots == nil || ownerUserID == 0 {
 		return domain.User{}, "", domain.ErrBotNameInvalid
 	}
@@ -599,7 +603,19 @@ func (s *Service) CreateBot(ctx context.Context, ownerUserID int64, name, userna
 	if err != nil {
 		return domain.User{}, "", err
 	}
-	u, profile, err := s.bots.CreateBotAccount(ctx, domain.User{
+	create := s.bots.CreateBotAccount
+	if managerID != 0 {
+		managed, ok := s.bots.(interface {
+			CreateManagedBotAccount(context.Context, domain.User, domain.BotProfile, int64) (domain.User, domain.BotProfile, error)
+		})
+		if !ok {
+			return domain.User{}, "", domain.ErrBotManagerInvalid
+		}
+		create = func(ctx context.Context, u domain.User, p domain.BotProfile) (domain.User, domain.BotProfile, error) {
+			return managed.CreateManagedBotAccount(ctx, u, p, managerID)
+		}
+	}
+	u, profile, err := create(ctx, domain.User{
 		AccessHash:     accessHash,
 		FirstName:      name,
 		Username:       username,

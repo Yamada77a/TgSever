@@ -27,9 +27,9 @@ type Service struct {
 	viewerProjectionComplete bool
 	botResponder             BotResponder
 	sendGate                 SendPermissionChecker
+	botAccess                BotAccessChecker
 	// recipientUsers resolves the private recipient without viewer projection.
-	// It is only a tombstone probe: viewer-scoped fields are irrelevant to
-	// whether the peer still accepts writes.
+	// Its bot/tombstone identity is shared by the write and bot-access gates.
 	recipientUsers RecipientUserReader
 	business       *businessAutomationConfig
 
@@ -38,6 +38,10 @@ type Service struct {
 
 type SendPermissionChecker interface {
 	CanSendMessages(ctx context.Context, userID int64) error
+}
+
+type BotAccessChecker interface {
+	BotAccessAllowed(ctx context.Context, botID, userID int64) (bool, error)
 }
 
 // RecipientUserReader is the minimal unprojected user lookup the send gate
@@ -89,6 +93,13 @@ func WithBotResponder(r BotResponder) Option {
 
 func WithSendPermissionChecker(c SendPermissionChecker) Option {
 	return func(s *Service) { s.sendGate = c }
+}
+
+func WithBotAccessChecker(checker BotAccessChecker, users RecipientUserReader) Option {
+	return func(s *Service) {
+		s.botAccess = checker
+		s.recipientUsers = users
+	}
 }
 
 // WithRecipientUserReader wires the tombstone probe that blocks private writes to
@@ -158,7 +169,7 @@ func (s *Service) PostPrivateServiceMessage(ctx context.Context, recipientUserID
 	}
 	req.SenderUserID = fromUserID
 	req.RecipientUserID = recipientUserID
-	return s.sendPrivateText(ctx, fromUserID, req)
+	return s.sendPrivateText(ctx, 0, req)
 }
 
 func (s *Service) sendPrivateText(ctx context.Context, userID int64, req domain.SendPrivateTextRequest) (domain.SendPrivateTextResult, error) {
@@ -187,7 +198,7 @@ func (s *Service) sendPrivateText(ctx context.Context, userID int64, req domain.
 	if err := s.ensureCanSend(ctx, req.SenderUserID); err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
-	if err := s.ensureCanSendRecipient(ctx, req.RecipientUserID); err != nil {
+	if err := s.ensureCanSendRecipientAccess(ctx, req.RecipientUserID, userID); err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
 	automation, automationOK := s.prepareBusinessAutomation(ctx, req)
@@ -231,13 +242,9 @@ func (s *Service) ensureCanSend(ctx context.Context, userID int64) error {
 	return s.sendGate.CanSendMessages(ctx, userID)
 }
 
-// SetChatTheme updates the shared private-chat theme and records the timeline service message.
-// ensureCanSendRecipient blocks private writes to a tombstone. A deleted account
-// keeps its rows for history, so the store happily accepts the message; without
-// this gate the sender's dialog would show a delivered message nobody can ever
-// read back. Rejecting with PEER_ID_INVALID is the official shape: the peer is
-// no longer a writable contact.
-func (s *Service) ensureCanSendRecipient(ctx context.Context, recipientUserID int64) error {
+// ensureCanSendRecipientAccess shares one unprojected recipient read for the
+// tombstone and bot access gates. userID == 0 is reserved for server receipts.
+func (s *Service) ensureCanSendRecipientAccess(ctx context.Context, recipientUserID, userID int64) error {
 	if s == nil || recipientUserID == 0 || s.recipientUsers == nil {
 		return nil
 	}
@@ -247,6 +254,15 @@ func (s *Service) ensureCanSendRecipient(ctx context.Context, recipientUserID in
 	}
 	if !found || u.Deleted {
 		return domain.ErrPeerDeleted
+	}
+	if u.Bot && userID != 0 && s.botAccess != nil {
+		allowed, err := s.botAccess.BotAccessAllowed(ctx, recipientUserID, userID)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return domain.ErrBotAccessDenied
+		}
 	}
 	return nil
 }
@@ -369,6 +385,9 @@ func (s *Service) ForwardPrivateMessages(ctx context.Context, userID int64, req 
 		req.OwnerUserID = userID
 	}
 	if err := s.ensureCanSend(ctx, req.OwnerUserID); err != nil {
+		return domain.ForwardPrivateMessagesResult{OwnerUserID: req.OwnerUserID}, err
+	}
+	if err := s.ensureCanSendRecipientAccess(ctx, req.ToUserID, userID); err != nil {
 		return domain.ForwardPrivateMessagesResult{OwnerUserID: req.OwnerUserID}, err
 	}
 	return s.messages.ForwardPrivateMessages(ctx, req)
