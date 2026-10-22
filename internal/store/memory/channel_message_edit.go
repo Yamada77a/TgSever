@@ -347,8 +347,22 @@ func (s *ChannelStore) UnpinAllChannelMessages(_ context.Context, req domain.Unp
 	if !canPinChannelMessages(channel, member) {
 		return domain.UpdateChannelPinnedMessageResult{}, domain.ErrChannelAdminRequired
 	}
+	if req.TopicID != 0 {
+		if !channel.Forum {
+			return domain.UpdateChannelPinnedMessageResult{}, domain.ErrChannelForumMissing
+		}
+		if req.TopicID != domain.ForumGeneralTopicID {
+			if _, ok := s.topics[req.ChannelID][req.TopicID]; !ok {
+				return domain.UpdateChannelPinnedMessageResult{}, domain.ErrMessageIDInvalid
+			}
+		}
+	}
 	cleared := []int(nil)
 	for i := range s.messages[req.ChannelID] {
+		msg := s.messages[req.ChannelID][i]
+		if req.TopicID != 0 && !(req.TopicID > 1 && msg.ID == req.TopicID) && !s.channelMessageInTopicLocked(req.ChannelID, msg, req.TopicID) {
+			continue
+		}
 		if s.messages[req.ChannelID][i].Pinned && !s.messages[req.ChannelID][i].Deleted {
 			s.messages[req.ChannelID][i].Pinned = false
 			cleared = append(cleared, s.messages[req.ChannelID][i].ID)
@@ -360,6 +374,11 @@ func (s *ChannelStore) UnpinAllChannelMessages(_ context.Context, req domain.Unp
 	sort.Ints(cleared)
 	pts := s.nextChannelPtsLocked(req.ChannelID)
 	channel.PinnedMessageID = 0
+	for _, msg := range s.messages[req.ChannelID] {
+		if msg.Pinned && !msg.Deleted && msg.ID > channel.PinnedMessageID {
+			channel.PinnedMessageID = msg.ID
+		}
+	}
 	channel.Pts = pts
 	s.channels[req.ChannelID] = channel
 	event := domain.ChannelUpdateEvent{

@@ -831,6 +831,7 @@ func botAPIMessageFromChannel(botID int64, msg domain.ChannelMessage) domain.Mes
 		ReplyMarkup: msg.ReplyMarkup,
 		RichMessage: msg.RichMessage,
 		Pinned:      msg.Pinned,
+		Action:      msg.Action,
 	}
 }
 
