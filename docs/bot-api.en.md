@@ -14,6 +14,7 @@ Russian version of this document: [bot-api.ru.md](./bot-api.ru.md).
 - [Request and response conventions](#request-and-response-conventions)
 - [Errors](#errors)
 - [Method summary](#method-summary)
+- [Methods: third-party verification](#methods-third-party-verification)
 - [Updates](#updates)
 - [Methods: bot identity and commands](#methods-bot-identity-and-commands)
 - [Methods: bot profile](#methods-bot-profile)
@@ -101,6 +102,10 @@ methods (`sendMessage`, the `send<Media>` family, `sendRichMessage`,
 `editMessageText`, `deleteMessage`, the ephemeral methods, `sendInvoice`)
 still take a numeric `chat_id` only.
 
+`verifyChat` and `removeChatVerification` additionally accept a bot's
+`@username`; ordinary users still require a numeric id. These two methods
+report an invalid or unresolved username as `CHAT_ID_INVALID`.
+
 Chat ids follow the official numbering: positive for users,
 `-100<channel_id>` for supergroups and channels. telesrv has **no legacy basic
 groups**, so every group is a supergroup.
@@ -172,6 +177,8 @@ Markers the gateway can return directly:
 | `PAYMENT_FORM_INVALID` | 400 | payment form rejected |
 | `CHAT_WRITE_FORBIDDEN`, `CHAT_ADMIN_REQUIRED` | 400 | rights missing |
 | `USER_BOT_REQUIRED` | 400 | target is not a bot user |
+| `BOT_VERIFIER_FORBIDDEN` | 400 | bot is not an enabled verifier, custom descriptions are forbidden, or removal targets another bot's mark |
+| `CUSTOM_DESCRIPTION_INVALID` | 400 | verification description exceeds 70 characters |
 | `CONFLICT: ...` | 409 | concurrent poll or webhook delivery |
 | `INTERNAL_SERVER_ERROR` | 500 / 503 | store or transport failure |
 
@@ -180,12 +187,13 @@ list above is the whitelist that survives.
 
 ## Method summary
 
-Implemented (79 methods + 1 file route):
+Implemented (83 methods + 1 file route):
 
 | Group | Methods |
 |---|---|
 | Bot & commands | `getMe`, `setMyCommands`, `deleteMyCommands`, `getMyCommands` |
 | Bot profile | `setMyName`, `getMyName`, `setMyDescription`, `getMyDescription`, `setMyShortDescription`, `getMyShortDescription` |
+| Third-party verification | `verifyUser`, `verifyChat`, `removeUserVerification`, `removeChatVerification` |
 | Updates | `getUpdates`, `dropPendingUpdates` (telesrv extension) |
 | Text | `sendMessage`, `sendRichMessage` |
 | Media | `sendPhoto`, `sendAnimation`, `sendAudio`, `sendDocument`, `sendLivePhoto`, `sendSticker`, `sendVideo`, `sendVideoNote`, `sendVoice` |
@@ -208,6 +216,28 @@ The method groups added on top of the core switch (albums/polls/dice/actions,
 the extra edit methods, forwarding, chat queries, chat management, bot profile)
 each depend on an optional gateway interface; a deployment that does not wire
 one answers that group with `501 METHOD_NOT_FOUND`.
+
+## Methods: third-party verification
+
+All four methods return `true`. They use the existing third-party verification
+service and stored verifier settings; they do not grant the platform's verified
+checkmark. The calling bot must be an enabled verifier configured by an operator.
+
+| Method | Required | Optional |
+|---|---|---|
+| `verifyUser` | `user_id` (positive integer) | `custom_description` (up to 70 Unicode characters) |
+| `verifyChat` | `chat_id` (numeric or public group/channel/bot `@username`) | `custom_description` (up to 70 Unicode characters) |
+| `removeUserVerification` | `user_id` (positive integer) | — |
+| `removeChatVerification` | `chat_id` (numeric or public group/channel/bot `@username`) | — |
+
+An empty description uses the verifier's default. A custom description requires
+the verifier's `CanModifyCustomDescription` permission. Removal is idempotent
+when no mark exists, but cannot remove another bot's mark
+(`BOT_VERIFIER_FORBIDDEN`). Direct-message monoforums are not valid targets.
+Without the verification gateway, the methods return `501 METHOD_NOT_FOUND`;
+without an available verifier service or enabled verifier settings, they return
+`400 BOT_VERIFIER_FORBIDDEN`.
+
 
 ## Updates
 
