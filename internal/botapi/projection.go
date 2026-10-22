@@ -358,6 +358,12 @@ func apiMessageProjectable(msg domain.Message) bool {
 	if msg.ID <= 0 {
 		return false
 	}
+	if msg.Action != nil {
+		switch msg.Action.Type {
+		case domain.ChannelActionTopicCreate, domain.ChannelActionTopicEdit, domain.ChannelActionSuggestedPostApproval, domain.ChannelActionSuggestedPostSuccess, domain.ChannelActionSuggestedPostRefund:
+			return true
+		}
+	}
 	if apiSuccessfulPayment(msg.Media) != nil {
 		return true
 	}

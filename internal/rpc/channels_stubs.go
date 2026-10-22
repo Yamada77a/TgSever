@@ -186,15 +186,13 @@ func (r *Router) onMessagesUnpinAllMessages(ctx context.Context, req *tg.Message
 	if err != nil {
 		return nil, channelAdminErr(err)
 	}
-	if topMsgID, ok := req.GetTopMsgID(); ok && topMsgID > 0 {
-		return &tg.MessagesAffectedHistory{Pts: view.Channel.Pts, Offset: 0}, nil
-	}
 	if _, ok := req.GetSavedPeerID(); ok {
 		return &tg.MessagesAffectedHistory{Pts: view.Channel.Pts, Offset: 0}, nil
 	}
 	res, err := r.deps.Channels.UnpinAllMessages(ctx, userID, domain.UnpinAllChannelMessagesRequest{
 		UserID:    userID,
 		ChannelID: peer.ID,
+		TopicID:   req.TopMsgID,
 		Date:      int(r.clock.Now().Unix()),
 	})
 	if err != nil {
