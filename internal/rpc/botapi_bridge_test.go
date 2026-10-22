@@ -56,6 +56,7 @@ func newBotAPIBridgeFixture(t *testing.T) botAPIBridgeFixture {
 	messageStore.AttachPollStore(pollStore)
 	channelStore := memory.NewChannelStore()
 	channelStore.AttachPollStore(pollStore)
+	memory.AttachMessageReplyStores(messageStore, channelStore)
 	botStore := memory.NewBotStore(userStore)
 	bot, _, err := botStore.CreateBotAccount(ctx, domain.User{AccessHash: 2101, FirstName: "BridgeBot", Username: "BridgeBot"}, domain.BotProfile{
 		OwnerUserID: owner.ID,

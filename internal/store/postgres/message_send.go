@@ -842,6 +842,12 @@ func (s *MessageStore) resolvePrivateSendReply(ctx context.Context, db sqlcgen.D
 	if req.ReplyTo == nil {
 		return nil, nil, nil
 	}
+	if (req.ReplyTo.ForumTopic || req.ReplyTo.TopMessageID > 0) && req.ReplyTo.Peer.ID != 0 && req.ReplyTo.Peer != (domain.Peer{Type: domain.PeerTypeUser, ID: req.RecipientUserID}) {
+		return s.resolvePrivateForumExternalReply(ctx, db, q, req)
+	}
+	if (req.ReplyTo.ForumTopic || req.ReplyTo.TopMessageID > 0) && (req.ReplyTo.Peer.ID == 0 || req.ReplyTo.Peer.Type == domain.PeerTypeUser) {
+		return s.resolvePrivateForumReply(ctx, q, req)
+	}
 	if req.ReplyTo.External != nil {
 		return nil, nil, domain.ErrReplyMessageIDInvalid
 	}
@@ -866,13 +872,9 @@ func (s *MessageStore) resolvePrivateSendReply(ctx context.Context, db sqlcgen.D
 	if peer.Type != domain.PeerTypeUser && peer.Type != domain.PeerTypeChannel {
 		return nil, nil, domain.ErrReplyMessageIDInvalid
 	}
-	// Channel messages are validated at the RPC boundary through Channels.GetMessages.
-	// They have no private message_box row, so retain the cross-dialog reference
-	// and quote verbatim in both recipient projections.
 	if peer.Type == domain.PeerTypeChannel {
-		reply := cloneMessageReply(req.ReplyTo)
-		reply.Peer = peer
-		return reply, cloneMessageReply(reply), nil
+		reply, err := resolveExternalReply(ctx, db, req.SenderUserID, req.ReplyTo)
+		return reply, domain.CloneMessageReply(reply), err
 	}
 	source, err := q.GetMessageBoxForReply(ctx, sqlcgen.GetMessageBoxForReplyParams{
 		OwnerUserID: req.SenderUserID,
@@ -882,23 +884,40 @@ func (s *MessageStore) resolvePrivateSendReply(ctx context.Context, db sqlcgen.D
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			if req.ReplyTo.AllowMissing && peer.ID == req.RecipientUserID && req.ReplyTo.TopMessageID == 0 && !req.ReplyTo.ForumTopic {
+				return nil, nil, nil
+			}
 			return nil, nil, domain.ErrReplyMessageIDInvalid
 		}
 		return nil, nil, fmt.Errorf("get reply message: %w", err)
+	}
+	sourceMessage, err := loadPrivateReplyMessage(source, peer)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := domain.ValidateBotAPIReplySource(req.ReplyTo, sourceMessage); err != nil {
+		return nil, nil, err
+	}
+	topicID := int(source.ReplyToTopID)
+	if peer.ID == req.RecipientUserID && topicID == 0 {
+		if _, err := q.ResolvePrivateForumTopic(ctx, sqlcgen.ResolvePrivateForumTopicParams{SenderID: req.SenderUserID, RecipientID: req.RecipientUserID, TopicID: source.BoxID}); err == nil {
+			topicID = int(source.BoxID)
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil, err
+		}
+	}
+	if peer.ID == req.RecipientUserID && topicID > 0 {
+		req.ReplyTo = cloneMessageReply(req.ReplyTo)
+		req.ReplyTo.TopMessageID = topicID
+		req.ReplyTo.ForumTopic = true
+		return s.resolvePrivateForumReply(ctx, q, req)
 	}
 	senderReply := cloneMessageReply(req.ReplyTo)
 	senderReply.MessageID = int(source.BoxID)
 	senderReply.Peer = peer
 	if peer.ID != req.RecipientUserID {
-		entities, err := decodeMessageEntities(source.EntitiesJson)
-		if err != nil {
-			return nil, nil, err
-		}
-		media, err := decodeMessageMedia(source.MediaJson)
-		if err != nil {
-			return nil, nil, err
-		}
-		protected := source.Noforwards || (media != nil && media.TTLSeconds > 0)
+		entities, media := sourceMessage.Entities, sourceMessage.Media
+		protected := source.Noforwards || (media != nil && (media.TTLSeconds > 0 || media.PaidMedia != nil))
 		if low, high, ok := pgNoForwardsPair(req.SenderUserID, peer.ID); ok {
 			var pairProtected bool
 			if err := db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM private_no_forwards_chats WHERE user_low_id=$1 AND user_high_id=$2 AND COALESCE(enabled_by_user_id,0)<>0)`, low, high).Scan(&pairProtected); err != nil {
@@ -909,7 +928,7 @@ func (s *MessageStore) resolvePrivateSendReply(ctx context.Context, db sqlcgen.D
 		if protected {
 			return nil, nil, domain.ErrChatForwardsRestricted
 		}
-		if err := domain.ValidateExternalReplyQuote(req.ReplyTo, source.Body); err != nil {
+		if err := domain.ValidateBotAPIReplySource(req.ReplyTo, sourceMessage); err != nil {
 			return nil, nil, err
 		}
 		senderReply.External, err = domain.NewMessageReplyExternal(domain.Message{From: domain.Peer{Type: domain.PeerTypeUser, ID: source.FromUserID}, Date: int(source.MessageDate), Body: source.Body, Entities: entities, Media: media})

@@ -172,15 +172,12 @@ func (r *Router) onMessagesUnpinAllMessages(ctx context.Context, req *tg.Message
 		if peer.Type != domain.PeerTypeUser || peer.ID == 0 {
 			return r.affectedHistory(ctx, authKeyID, userID, 0)
 		}
-		if topMsgID, ok := req.GetTopMsgID(); ok && topMsgID > 0 {
-			// 私聊无 forum topic 维度，按无置顶可清处理。
-			return r.affectedHistory(ctx, authKeyID, userID, 0)
-		}
 		if _, ok := req.GetSavedPeerID(); ok {
 			// Saved Messages 子会话置顶维度未实现，避免误清全局置顶。
 			return r.affectedHistory(ctx, authKeyID, userID, 0)
 		}
-		return r.unpinAllPrivateMessages(ctx, userID, peer)
+		topicID, _ := req.GetTopMsgID()
+		return r.unpinAllPrivateMessages(ctx, userID, peer, topicID)
 	}
 	if r.deps.Channels == nil {
 		return nil, notImplementedErr()

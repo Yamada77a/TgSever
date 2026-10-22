@@ -137,6 +137,11 @@ func tgMessageServiceAction(msg domain.Message) tg.MessageActionClass {
 		return nil
 	}
 	switch m.ServiceAction.Kind {
+	case domain.MessageServiceActionTopicCreate, domain.MessageServiceActionTopicEdit:
+		if m.ServiceAction.ForumTopic == nil {
+			return &tg.MessageActionEmpty{}
+		}
+		return tgChannelMessageAction(*m.ServiceAction.ForumTopic)
 	case domain.MessageServiceActionHistoryClear:
 		return &tg.MessageActionHistoryClear{}
 	case domain.MessageServiceActionSuggestProfilePhoto:
