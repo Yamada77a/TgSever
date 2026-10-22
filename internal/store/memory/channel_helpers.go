@@ -52,6 +52,10 @@ func (s *ChannelStore) DeleteChannel(_ context.Context, req domain.DeleteChannel
 	if member.Role != domain.ChannelRoleCreator {
 		return domain.DeleteChannelResult{}, domain.ErrChannelAdminRequired
 	}
+	if err := s.finishDeletedChannelSuggestedPostsLocked(channel, req.Date); err != nil {
+		return domain.DeleteChannelResult{}, err
+	}
+	channel = s.channels[req.ChannelID]
 	recipients := s.activeMemberIDsLocked(req.ChannelID, 0, 0)
 	channel.Deleted = true
 	channel.Username = ""

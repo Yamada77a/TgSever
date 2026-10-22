@@ -95,6 +95,9 @@ func (s *ChannelStore) DeleteChannel(ctx context.Context, req domain.DeleteChann
 	if member.Role != domain.ChannelRoleCreator {
 		return domain.DeleteChannelResult{}, domain.ErrChannelAdminRequired
 	}
+	if err := s.finishDeletedChannelSuggestedPostsTx(ctx, tx, channel, req.Date); err != nil {
+		return domain.DeleteChannelResult{}, fmt.Errorf("finish channel suggested posts: %w", err)
+	}
 	recipients, _ := s.ListActiveChannelMemberIDs(ctx, req.UserID, req.ChannelID, 0)
 	if _, err := tx.Exec(ctx, `UPDATE channels SET deleted = true, username = NULL, updated_at = now() WHERE id = $1`, req.ChannelID); err != nil {
 		return domain.DeleteChannelResult{}, fmt.Errorf("mark channel deleted: %w", err)
