@@ -523,6 +523,11 @@ func (s *PasswordStore) GetConnectedBusinessBot(ctx context.Context, ownerUserID
 	return decodeBusinessConnection(raw, err)
 }
 
+func (s *PasswordStore) GetBusinessBotConnection(ctx context.Context, connectionID string) (domain.ConnectedBusinessBot, bool, error) {
+	raw, err := sqlcgen.New(s.db).GetBusinessBotConnection(ctx, connectionID)
+	return decodeBusinessConnection(raw, err)
+}
+
 func decodeBusinessConnection(raw []byte, err error) (domain.ConnectedBusinessBot, bool, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.ConnectedBusinessBot{}, false, nil
@@ -876,4 +881,8 @@ func quickReplyPGErr(err error) error {
 		return domain.ErrShortcutOccupied
 	}
 	return err
+}
+
+func (s *PasswordStore) DeleteBusinessConnectionsForUser(ctx context.Context, userID int64) error {
+	return sqlcgen.New(s.db).DeleteBusinessConnectionsForUser(ctx, userID)
 }
