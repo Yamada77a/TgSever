@@ -667,10 +667,6 @@ func tgChannelFull(view domain.ChannelView, publicBaseURL ...string) *tg.Channel
 		full.SetReactionsLimit(ch.ReactionPolicy.Limit)
 	}
 	if ch.Broadcast && !ch.Megagroup {
-		// Android uses paid_media_allowed as the capability gate for showing the
-		// paid-reaction setting; paid_reactions_available below remains the saved
-		// on/off state.
-		full.SetPaidMediaAllowed(true)
 		full.SetStargiftsAvailable(true)
 	}
 	// paid_reactions_available reflects the saved chat policy, not mere broadcast

@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"reflect"
 	"sync"
+	accountapp "telesrv/internal/app/account"
 	appauth "telesrv/internal/app/auth"
 	appdialogs "telesrv/internal/app/dialogs"
 	"telesrv/internal/domain"
@@ -1263,6 +1264,7 @@ func TestTDesktopStartupRPCsEncode(t *testing.T) {
 			Phone:      "15550000000",
 		}},
 		LangPack: seededLangPackService(t),
+		Account:  accountapp.NewService(memory.NewPasswordStore()),
 	}, zaptest.NewLogger(t), clock.System)
 
 	tests := []struct {

@@ -104,6 +104,33 @@ func TestGuestSenderPostgresPreservesProvenanceAndPermissions(t *testing.T) {
 	if ordinary.SenderMessage.GuestChatViaFrom.ID != 0 {
 		t.Fatal("ordinary inline misclassified")
 	}
+	business, err := messages.SendPrivateText(ctx, domain.SendPrivateTextRequest{SenderUserID: caller, RecipientUserID: recipient, RandomID: 93, Message: "business answer", BusinessConnectionID: "connection-real", BusinessBotID: bot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, found, err := messages.GetByUID(ctx, recipient, business.RecipientMessage.UID)
+	if err != nil || !found {
+		t.Fatalf("load business provenance: %v", err)
+	}
+	if restored.BusinessConnectionID != "connection-real" || restored.BusinessBotID != bot || restored.GuestChatViaFrom.ID != 0 {
+		t.Fatalf("business provenance: %+v", restored)
+	}
+	dialogs, err := NewDialogStore(pool).ListByUser(ctx, recipient, domain.DialogFilter{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found = false
+	for _, msg := range dialogs.Messages {
+		if msg.UID == business.RecipientMessage.UID {
+			found = true
+			if msg.BusinessConnectionID != "connection-real" || msg.BusinessBotID != bot {
+				t.Fatalf("dialog provenance: %+v", msg)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("business message missing from dialog")
+	}
 	channels := NewChannelStore(pool)
 	created, err := channels.CreateChannel(ctx, domain.CreateChannelRequest{CreatorUserID: caller, MemberUserIDs: []int64{recipient}, Title: "guest group", Megagroup: true, Date: int(now.Unix())})
 	if err != nil {

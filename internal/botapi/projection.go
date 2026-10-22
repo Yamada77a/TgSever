@@ -106,7 +106,6 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 		}
 		kind := string(event.BotAPIObject.Kind)
 		return map[string]any{"update_id": updateID, kind: body}, kind, true
-
 	case domain.UpdateEventNewMessage:
 		if event.EphemeralMessage != nil {
 			message, ok := apiEphemeralMessage(*event.EphemeralMessage, event.Users, event.Channels)
@@ -212,18 +211,18 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 				"invoice_payload": query.Payload,
 			},
 		}, "pre_checkout_query", true
-	case domain.UpdateEventBotMessageReaction, domain.UpdateEventBotMessageReactionCount:
-		body, kind, ok := apiReactionUpdated(event)
-		if !ok {
-			return nil, "", false
-		}
-		return map[string]any{"update_id": updateID, kind: body}, kind, true
 	case domain.UpdateEventBotChatJoinRequest:
 		body, ok := apiChatJoinRequest(event)
 		if !ok {
 			return nil, "", false
 		}
 		return map[string]any{"update_id": updateID, "chat_join_request": body}, "chat_join_request", true
+	case domain.UpdateEventBotMessageReaction, domain.UpdateEventBotMessageReactionCount:
+		body, kind, ok := apiReactionUpdated(event)
+		if !ok {
+			return nil, "", false
+		}
+		return map[string]any{"update_id": updateID, kind: body}, kind, true
 	case domain.UpdateEventBotMyChatMember, domain.UpdateEventBotChatMember:
 		body, ok := apiChatMemberUpdated(event)
 		if !ok {
@@ -424,6 +423,7 @@ func apiMessage(msg domain.Message, users []domain.User, channelLists ...[]domai
 		"date":       msg.Date,
 		"chat":       apiChat(msg.Peer, userByID),
 	}
+	projectGuestCaller(msg, out, userByID, channelByID)
 	if msg.BusinessConnectionID != "" {
 		out["business_connection_id"] = msg.BusinessConnectionID
 	}
@@ -432,7 +432,6 @@ func apiMessage(msg domain.Message, users []domain.User, channelLists ...[]domai
 			out["sender_business_bot"] = apiUser(bot)
 		}
 	}
-	projectGuestCaller(msg, out, userByID, channelByID)
 	if msg.Peer.Type == domain.PeerTypeChannel {
 		if channel, ok := channelByID[msg.Peer.ID]; ok {
 			describeChannelChat(out["chat"].(map[string]any), channel)

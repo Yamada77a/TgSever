@@ -944,34 +944,7 @@ func (r *Router) resolveInputMedia(ctx context.Context, userID int64, input tg.I
 			Value:    value,
 		}}, nil
 	case *tg.InputMediaGeoLive:
-		if in.Stopped {
-			// stopped 只在 editMessage 停止共享时有意义，发送即停没有客户端路径。
-			return nil, mediaInvalidErr()
-		}
-		geo, err := domainGeoPointFromInput(in.GeoPoint)
-		if err != nil {
-			return nil, err
-		}
-		live := &domain.MessageGeoLive{Geo: *geo, Period: minLiveLocationPeriod}
-		if period, ok := in.GetPeriod(); ok {
-			if period != foreverLiveLocationPeriod && (period < minLiveLocationPeriod || period > maxLiveLocationPeriod) {
-				return nil, mediaInvalidErr()
-			}
-			live.Period = period
-		}
-		if heading, ok := in.GetHeading(); ok {
-			if heading < 0 || heading > maxLiveLocationHeading {
-				return nil, mediaInvalidErr()
-			}
-			live.Heading = heading
-		}
-		if radius, ok := in.GetProximityNotificationRadius(); ok {
-			if radius < 0 || radius > maxProximityRadiusMeters {
-				return nil, mediaInvalidErr()
-			}
-			live.ProximityNotificationRadius = radius
-		}
-		return &domain.MessageMedia{Kind: domain.MessageMediaKindGeoLive, GeoLive: live}, nil
+		return domainLiveLocationFromInput(in)
 	case *tg.InputMediaPoll:
 		if r.deps.Polls == nil {
 			return nil, mediaInvalidErr()
@@ -1242,6 +1215,9 @@ func domainDocumentAttributes(attrs []tg.DocumentAttributeClass) []domain.Docume
 			if id, hash, ok := inputStickerSetIDs(v.Stickerset); ok {
 				attr.StickerSetID = id
 				attr.StickerSetAccessHash = hash
+			}
+			if coords, ok := v.GetMaskCoords(); ok {
+				attr.MaskPosition = domainStickerMaskPosition(coords)
 			}
 			out = append(out, attr)
 		case *tg.DocumentAttributeVideo:

@@ -191,6 +191,9 @@ func (s *Service) sendPrivateText(ctx context.Context, userID int64, req domain.
 	if err := domain.ValidateReplyMarkup(req.ReplyMarkup); err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
+	if err := domain.ValidateReplyMarkupMedia(req.ReplyMarkup, req.Media); err != nil {
+		return domain.SendPrivateTextResult{}, err
+	}
 	if req.RandomID != 0 && !req.IdempotencyPreflighted {
 		fingerprint, err := store.PrivateSendFingerprint(req)
 		if err != nil {

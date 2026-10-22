@@ -414,9 +414,9 @@ func (s *ChannelStore) DeleteForumTopicHistory(ctx context.Context, req domain.D
 	rows, err := tx.Query(ctx, `
 SELECT id
 FROM channel_messages
-WHERE channel_id =  AND NOT deleted AND (id =  OR reply_to_top_id = )
+WHERE channel_id = $1 AND NOT deleted AND (id = $2 OR reply_to_top_id = $2)
 ORDER BY id DESC
-LIMIT `, req.ChannelID, req.TopicID, domain.MaxDeleteHistoryBatch)
+LIMIT $3`, req.ChannelID, req.TopicID, domain.MaxDeleteHistoryBatch)
 	if err != nil {
 		return domain.DeleteChannelHistoryResult{}, fmt.Errorf("list forum topic delete ids: %w", err)
 	}
@@ -443,7 +443,7 @@ LIMIT `, req.ChannelID, req.TopicID, domain.MaxDeleteHistoryBatch)
 	if err := tx.QueryRow(ctx, `
 SELECT COUNT(*)::int
 FROM channel_messages
-WHERE channel_id =  AND NOT deleted AND (id =  OR reply_to_top_id = )`, req.ChannelID, req.TopicID).Scan(&remaining); err != nil {
+WHERE channel_id = $1 AND NOT deleted AND (id = $2 OR reply_to_top_id = $2)`, req.ChannelID, req.TopicID).Scan(&remaining); err != nil {
 		return domain.DeleteChannelHistoryResult{}, fmt.Errorf("count remaining forum topic messages: %w", err)
 	}
 	offset := 0
@@ -452,7 +452,7 @@ WHERE channel_id =  AND NOT deleted AND (id =  OR reply_to_top_id = )`, req.Chan
 	} else if _, err := tx.Exec(ctx, `
 UPDATE channel_forum_topics
 SET deleted = true, updated_at = now()
-WHERE channel_id =  AND topic_id = `, req.ChannelID, req.TopicID); err != nil {
+WHERE channel_id = $1 AND topic_id = $2`, req.ChannelID, req.TopicID); err != nil {
 		return domain.DeleteChannelHistoryResult{}, fmt.Errorf("mark forum topic deleted: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -480,14 +480,14 @@ func (s *ChannelStore) ListForumTopics(ctx context.Context, viewerUserID int64, 
 	countSQL := `
 SELECT COUNT(*)::int
 FROM channel_forum_topics
-WHERE channel_id =  AND NOT deleted AND topic_id >  AND topic_id <> 1
-  AND ( = '' OR POSITION( IN LOWER(title)) > 0)`
+WHERE channel_id = $1 AND NOT deleted AND topic_id > $2 AND topic_id <> 1
+  AND ($3 = '' OR POSITION($3 IN LOWER(title)) > 0)`
 	var total int
 	if err := s.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
 		return domain.ChannelForumTopicList{}, fmt.Errorf("count forum topics: %w", err)
 	}
 	args := []any{filter.ChannelID, member.AvailableMinID, query}
-	where := `channel_id =  AND NOT deleted AND topic_id >  AND topic_id <> 1 AND ( = '' OR POSITION( IN LOWER(title)) > 0)`
+	where := `channel_id = $1 AND NOT deleted AND topic_id > $2 AND topic_id <> 1 AND ($3 = '' OR POSITION($3 IN LOWER(title)) > 0)`
 	offsetID := filter.OffsetTopic
 	if offsetID == 0 {
 		offsetID = filter.OffsetID
@@ -649,7 +649,7 @@ func (s *ChannelStore) getForumTopic(ctx context.Context, db sqlcgen.DBTX, chann
 	topic, err := scanChannelForumTopic(db.QueryRow(ctx, `
 SELECT `+channelForumTopicColumns+`
 FROM channel_forum_topics
-WHERE channel_id =  AND topic_id =  AND NOT deleted`, channelID, topicID))
+WHERE channel_id = $1 AND topic_id = $2 AND NOT deleted`, channelID, topicID))
 	if errors.Is(err, pgx.ErrNoRows) && topicID == domain.ForumGeneralTopicID {
 		channel, channelErr := getChannelByID(ctx, db, channelID)
 		if channelErr != nil {
@@ -736,9 +736,10 @@ func (s *ChannelStore) populateChannelMessageReplies(ctx context.Context, db sql
 			rootID = messages[i].Discussion.MessageID
 			replies.Comments = true
 			replies.ChannelID = messages[i].Discussion.ChannelID
-		} else if channel.Broadcast && channel.LinkedChatID != 0 && messages[i].Post {
-			replies.Comments = true
-			replies.ChannelID = channel.LinkedChatID
+		} else if channel.Broadcast && messages[i].Post {
+			// Only the persisted discussion reference proves a comments root.
+			messages[i].Replies = nil
+			continue
 		}
 		if _, ok := readMaxByChannel[targetChannelID]; !ok {
 			readInbox, _ := s.channelReadWatermarks(ctx, targetChannelID, viewerUserID)

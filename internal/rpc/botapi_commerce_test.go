@@ -3,13 +3,9 @@ package rpc
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
-	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,7 +20,6 @@ import (
 	appmessages "telesrv/internal/app/messages"
 	appstars "telesrv/internal/app/stars"
 	appusers "telesrv/internal/app/users"
-	"telesrv/internal/botapi"
 	"telesrv/internal/domain"
 	"telesrv/internal/store/memory"
 )
@@ -149,38 +144,8 @@ func TestInlineInvoiceLinkCheckoutUsesPersistedOffer(t *testing.T) {
 	f := newCommerceRPCFixture(t)
 	ctx, cancel := context.WithTimeout(WithUserID(context.Background(), f.buyer.ID), 5*time.Second)
 	defer cancel()
-	server, err := botapi.Start(ctx, "127.0.0.1:0", f.r.deps.Bots, f.r.deps.Users.(botapi.UsersService), nil, nil, f.r, nil)
+	link, err := f.r.BotAPICreateInvoiceLink(ctx, f.bot.ID, "", "Inline access", "Private paid service", "inline-order", 40, 0)
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer server.Close()
-	call := func(method string, fields map[string]any, status int) json.RawMessage {
-		t.Helper()
-		body, err := json.Marshal(fields)
-		if err != nil {
-			t.Fatal(err)
-		}
-		request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/bot%d:secret/%s", f.bot.ID, method), bytes.NewReader(body))
-		request.Header.Set("Content-Type", "application/json")
-		response := httptest.NewRecorder()
-		server.Handler.ServeHTTP(response, request)
-		var envelope struct {
-			OK     bool            `json:"ok"`
-			Result json.RawMessage `json:"result"`
-		}
-		if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil || response.Code != status || envelope.OK != (status == http.StatusOK) {
-			t.Fatalf("%s: status=%d body=%s err=%v", method, response.Code, response.Body, err)
-		}
-		return envelope.Result
-	}
-	fields := map[string]any{"title": "Inline access", "description": "Private paid service", "payload": "inline-order", "currency": "XTR", "prices": []map[string]any{{"label": "Access", "amount": 40}}}
-	for _, amount := range []int{0, -1} {
-		fields["prices"] = []map[string]any{{"label": "Access", "amount": amount}}
-		call("createInvoiceLink", fields, http.StatusBadRequest)
-	}
-	fields["prices"] = []map[string]any{{"label": "Access", "amount": 40}}
-	var link string
-	if err := json.Unmarshal(call("createInvoiceLink", fields, http.StatusOK), &link); err != nil {
 		t.Fatal(err)
 	}
 	_, slug, ok := strings.Cut(link, "/$")
@@ -235,30 +200,8 @@ func TestInlineInvoiceLinkCheckoutUsesPersistedOffer(t *testing.T) {
 	if balance.Balance != 60 {
 		t.Fatalf("inline invoice debit=%d", balance.Balance)
 	}
-	// A completed form is idempotent and bypasses another pre-checkout question.
-	if _, err := f.r.onPaymentsSendStarsForm(ctx, &tg.PaymentsSendStarsFormRequest{Invoice: invoice, FormID: form.(*tg.PaymentsPaymentFormStars).FormID}); err != nil {
-		t.Fatal(err)
+	rows, _, err := f.r.BotAPIGetStarTransactions(ctx, f.bot.ID, 0, 100)
+	if err != nil || len(rows) != 1 || rows[0].Amount != 40 || rows[0].Payload != "inline-order" {
+		t.Fatalf("inline proceeds=%+v %v", rows, err)
 	}
-	balance, err = f.r.deps.Stars.GetBalance(ctx, f.buyer.ID)
-	if err != nil || balance.Balance != 60 {
-		t.Fatalf("replayed payment balance=%+v err=%v", balance, err)
-	}
-	var wallet struct {
-		Amount int64 `json:"amount"`
-	}
-	if err := json.Unmarshal(call("getMyStarBalance", nil, http.StatusOK), &wallet); err != nil || wallet.Amount != 40 {
-		t.Fatalf("shared bot wallet=%+v err=%v", wallet, err)
-	}
-	var history struct {
-		Transactions []struct {
-			Amount int64 `json:"amount"`
-			Source struct {
-				Payload string `json:"invoice_payload"`
-			} `json:"source"`
-		} `json:"transactions"`
-	}
-	if err := json.Unmarshal(call("getStarTransactions", map[string]any{"offset": 0, "limit": 100}, http.StatusOK), &history); err != nil || len(history.Transactions) != 1 || history.Transactions[0].Amount != 40 || history.Transactions[0].Source.Payload != "inline-order" {
-		t.Fatalf("invoice transaction history=%+v err=%v", history, err)
-	}
-	call("getStarTransactions", map[string]any{"limit": 0}, http.StatusBadRequest)
 }

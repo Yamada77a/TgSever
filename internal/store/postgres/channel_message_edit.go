@@ -479,7 +479,7 @@ func (s *ChannelStore) UnpinAllChannelMessages(ctx context.Context, req domain.U
 	} else {
 		rows, err := tx.Query(ctx, `
 UPDATE channel_messages SET pinned = false
-WHERE channel_id =  AND pinned AND NOT deleted
+WHERE channel_id = $1 AND pinned AND NOT deleted
 RETURNING id`, req.ChannelID)
 		if err != nil {
 			return domain.UpdateChannelPinnedMessageResult{}, fmt.Errorf("unpin all channel messages: %w", err)
@@ -510,8 +510,8 @@ RETURNING id`, req.ChannelID)
 		return domain.UpdateChannelPinnedMessageResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `
-UPDATE channels SET pinned_message_id = , pts = , updated_at = now()
-WHERE id = `, req.ChannelID, pts, pinnedID); err != nil {
+UPDATE channels SET pinned_message_id = $3, pts = $2, updated_at = now()
+WHERE id = $1`, req.ChannelID, pts, pinnedID); err != nil {
 		return domain.UpdateChannelPinnedMessageResult{}, fmt.Errorf("clear channel pinned message: %w", err)
 	}
 	channel.PinnedMessageID = int(pinnedID)

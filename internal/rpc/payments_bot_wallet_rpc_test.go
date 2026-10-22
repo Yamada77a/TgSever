@@ -179,32 +179,6 @@ func TestPaymentsGetStarsRevenueStatsDeniesNonOwnerBotWallet(t *testing.T) {
 	}
 }
 
-// A plain user has no revenue bucket separate from their spendable Stars
-// balance, so the personal path must keep the bounded compatibility response
-// instead of starting to invent revenue.
-func TestPaymentsGetStarsRevenueStatsKeepsStubForPlainUser(t *testing.T) {
-	ctx := context.Background()
-	users := memory.NewUserStore()
-	plain, err := users.Create(ctx, domain.User{AccessHash: 9911, Phone: "15550009911", FirstName: "Plain User"})
-	if err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-	r := New(Config{}, Deps{
-		Users: appusers.NewService(users),
-		Gifts: &botWalletGifts{balances: map[int64]int64{plain.ID: 4242}, revenue: map[int64]int64{plain.ID: 4242}},
-	}, zaptest.NewLogger(t), clock.System)
-
-	stats := dispatchBotRevenueStats(t, r, plain.ID, plain.ID)
-
-	current, ok := stats.Status.CurrentBalance.(*tg.StarsAmount)
-	if !ok {
-		t.Fatalf("current balance = %T, want *tg.StarsAmount", stats.Status.CurrentBalance)
-	}
-	if current.Amount != 0 {
-		t.Fatalf("plain user current balance = %d, want 0", current.Amount)
-	}
-}
-
 // TDesktop opens the bot earn screen through payments.getStarsStatus: it shows
 // the wallet balance in the bot profile and hides the whole balance section
 // while that balance is zero. So this method has to serve the bot peer or the

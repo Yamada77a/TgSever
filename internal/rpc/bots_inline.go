@@ -1198,9 +1198,9 @@ func tgBotInlineResult(in domain.BotInlineResult) tg.BotInlineResultClass {
 	}
 	msg := &tg.BotInlineMessageText{
 		NoWebpage:   in.NoWebpage,
+		InvertMedia: in.InvertMedia,
 		Message:     in.Message,
 		Entities:    tgMessageEntities(in.Entities),
-		InvertMedia: in.InvertMedia,
 	}
 	if markup := tgReplyMarkup(in.ReplyMarkup); markup != nil {
 		msg.SetReplyMarkup(markup)

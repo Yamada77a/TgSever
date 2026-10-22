@@ -32,7 +32,7 @@ func init() {
 		"setMyProfilePhoto":               (*handler).setMyProfilePhoto,
 		"removeMyProfilePhoto":            (*handler).removeMyProfilePhoto,
 	})
-	registerErrorMarkers("LIMIT_INVALID", "PHOTO_INVALID")
+	registerErrorMarkers("LIMIT_INVALID", "BOT_MANAGER_INVALID", "BOT_ACCESS_DENIED", "BOT_INSTANCE_CLOSED", "PHOTO_INVALID")
 }
 func (h *handler) profilesRequest(w http.ResponseWriter, r *http.Request) (ProfilesExtendedGateway, map[string]string, bool) {
 	g, ok := h.gateway.(ProfilesExtendedGateway)

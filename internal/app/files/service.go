@@ -48,19 +48,18 @@ const (
 
 // Service 实现 upload 分片累积、blob 落盘、getFile 下载，并把上传文件组装成 Photo / Document。
 type Service struct {
-	botStickerMu sync.Mutex
-	media        store.MediaStore
-	gifCatalog   store.GifCatalogStore
-	blobs        BlobBackend
-	uploadParts  UploadPartBackend
-	dc           int
-	log          *zap.Logger
-	thumbs       VideoThumbnailer
-	thumbsSet    bool
-	gifs         GIFTranscoder
-	gifsSet      bool
-	blobCache    *blobMetaCache
-	byteCache    *blobBytesCache
+	media       store.MediaStore
+	gifCatalog  store.GifCatalogStore
+	blobs       BlobBackend
+	uploadParts UploadPartBackend
+	dc          int
+	log         *zap.Logger
+	thumbs      VideoThumbnailer
+	thumbsSet   bool
+	gifs        GIFTranscoder
+	gifsSet     bool
+	blobCache   *blobMetaCache
+	byteCache   *blobBytesCache
 	// blobMetaSF/blobBytesSF 合并对同一热 blob 的并发首次访问：否则每个并发 getFile 都各打
 	// 一发 PG GetFileBlob + backend GetRange(热门贴纸/reaction/头像被大量用户同时拉时尤甚)。
 	blobMetaSF         singleflight.Group
@@ -68,6 +67,7 @@ type Service struct {
 	blobRangeSF        singleflight.Group
 	stickerSetCache    *stickerSetFullCache
 	stickerSetNegCache *stickerSetNegativeCache
+	botStickerMu       sync.Mutex
 	uploadQuota        domain.UploadPartQuota
 	mapTiles           *mapTileProxy
 	externalMedia      *externalMediaFetcher

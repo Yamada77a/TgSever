@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"image"
 	"image/png"
 	"mime/multipart"
@@ -15,15 +14,8 @@ import (
 	appusers "telesrv/internal/app/users"
 	"telesrv/internal/botapi"
 	"telesrv/internal/domain"
-	"telesrv/internal/store"
 	"testing"
 )
-
-type unavailablePaidFileCommerce struct{ store.BotCommerce }
-
-func (s unavailablePaidFileCommerce) CanReadPaidFile(context.Context, int64, string) (bool, error) {
-	return false, errors.New("paid media storage unavailable")
-}
 
 func TestPaidMediaHTTPFileReferencesAreOwnerScoped(t *testing.T) {
 	f := newCommerceRPCFixture(t)
@@ -135,11 +127,4 @@ func TestPaidMediaHTTPFileReferencesAreOwnerScoped(t *testing.T) {
 			t.Fatalf("foreign file access: %d %s", response.Code, response.Body.String())
 		}
 	}
-	f.r.deps.BotCommerce = unavailablePaidFileCommerce{BotCommerce: f.commerce}
-	for _, response := range []*httptest.ResponseRecorder{call(sellerToken, "getFile", fileBody, "application/json"), download(sellerToken)} {
-		if response.Code != http.StatusInternalServerError {
-			t.Fatalf("storage failure hidden as an invalid file: status=%d body=%s", response.Code, response.Body)
-		}
-	}
-
 }

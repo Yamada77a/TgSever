@@ -176,8 +176,7 @@ func (r *Router) onMessagesUnpinAllMessages(ctx context.Context, req *tg.Message
 			// Saved Messages 子会话置顶维度未实现，避免误清全局置顶。
 			return r.affectedHistory(ctx, authKeyID, userID, 0)
 		}
-		topicID, _ := req.GetTopMsgID()
-		return r.unpinAllPrivateMessages(ctx, userID, peer, topicID)
+		return r.unpinAllPrivateMessages(ctx, userID, peer, req.TopMsgID)
 	}
 	if r.deps.Channels == nil {
 		return nil, notImplementedErr()
@@ -712,6 +711,8 @@ func (r *Router) channelIDFromLegacyInputPeerChecked(ctx context.Context, userID
 
 func channelInvalidErr(err error) error {
 	switch {
+	case errors.Is(err, domain.ErrQuoteTextInvalid):
+		return quoteTextInvalidErr()
 	case errors.Is(err, domain.ErrChannelSenderBanned):
 		return sendAsPeerInvalidErr()
 	case errors.Is(err, domain.ErrUserFrozen):

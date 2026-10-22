@@ -81,8 +81,8 @@ func botFatherSeedProfile() domain.BotProfile {
 	return domain.BotProfile{
 		BotUserID:     domain.BotFatherUserID,
 		OwnerUserID:   domain.BotFatherUserID,
-		Description:   "BotFather is the one bot to rule them all. Use it to create new bot accounts and manage your existing bots.",
 		CanManageBots: true,
+		Description:   "BotFather is the one bot to rule them all. Use it to create new bot accounts and manage your existing bots.",
 		Commands: []domain.BotCommand{
 			{Command: "newbot", Description: "create a new bot"},
 			{Command: "mybots", Description: "edit your bots"},
@@ -672,6 +672,38 @@ func (s *BotStore) GetRequestedWebViewButton(_ context.Context, botUserID, userI
 	return button, true, nil
 }
 
+func cloneRequestedButtonFilter(in *domain.BotRequestPeerFilter) *domain.BotRequestPeerFilter {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	if in.UserAdminRights != nil {
+		rights := *in.UserAdminRights
+		out.UserAdminRights = &rights
+	}
+	if in.BotAdminRights != nil {
+		rights := *in.BotAdminRights
+		out.BotAdminRights = &rights
+	}
+	return &out
+}
+
+func (s *BotStore) ConsumeRequestedWebViewButton(_ context.Context, botUserID, userID int64, id string) (domain.BotRequestedWebViewButton, bool, error) {
+	key := requestedButtonKey{botUserID: botUserID, userID: userID, reqID: id}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	button, ok := s.requestButtons[key]
+	if !ok {
+		return domain.BotRequestedWebViewButton{}, false, nil
+	}
+	delete(s.requestButtons, key)
+	if !button.ExpiresAt.After(time.Now()) {
+		return domain.BotRequestedWebViewButton{}, false, nil
+	}
+	button.PeerFilter = cloneRequestedButtonFilter(button.PeerFilter)
+	return button, true, nil
+}
+
 func (s *BotStore) DeleteRequestedWebViewButton(_ context.Context, botUserID, userID int64, webAppReqID string) error {
 	s.mu.Lock()
 	delete(s.requestButtons, requestedButtonKey{botUserID: botUserID, userID: userID, reqID: webAppReqID})
@@ -847,36 +879,4 @@ func sortAttachMenuBots(list []domain.BotAttachMenuBot) {
 			list[j], list[j-1] = list[j-1], list[j]
 		}
 	}
-}
-
-func cloneRequestedButtonFilter(in *domain.BotRequestPeerFilter) *domain.BotRequestPeerFilter {
-	if in == nil {
-		return nil
-	}
-	out := *in
-	if in.UserAdminRights != nil {
-		rights := *in.UserAdminRights
-		out.UserAdminRights = &rights
-	}
-	if in.BotAdminRights != nil {
-		rights := *in.BotAdminRights
-		out.BotAdminRights = &rights
-	}
-	return &out
-}
-
-func (s *BotStore) ConsumeRequestedWebViewButton(_ context.Context, botUserID, userID int64, id string) (domain.BotRequestedWebViewButton, bool, error) {
-	key := requestedButtonKey{botUserID: botUserID, userID: userID, reqID: id}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	button, ok := s.requestButtons[key]
-	if !ok {
-		return domain.BotRequestedWebViewButton{}, false, nil
-	}
-	delete(s.requestButtons, key)
-	if !button.ExpiresAt.After(time.Now()) {
-		return domain.BotRequestedWebViewButton{}, false, nil
-	}
-	button.PeerFilter = cloneRequestedButtonFilter(button.PeerFilter)
-	return button, true, nil
 }

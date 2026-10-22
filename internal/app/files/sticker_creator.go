@@ -687,6 +687,8 @@ func stickerSetHash(set domain.StickerSet) int {
 			writeHashString(h, word)
 		}
 	}
+	binary.LittleEndian.PutUint64(buf[:], uint64(set.ThumbDocumentID))
+	_, _ = h.Write(buf[:])
 	sum := int(h.Sum32() & 0x7fffffff)
 	if sum == 0 {
 		return 1

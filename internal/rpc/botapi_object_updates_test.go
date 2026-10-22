@@ -223,3 +223,45 @@ func TestBotAPIWebhookDeliversProducerSnapshotAndAcknowledges(t *testing.T) {
 		}
 	}
 }
+
+func TestBotAPIPollVoteRetractAndStopProduceSnapshots(t *testing.T) {
+	f := newBotAPIBridgeFixture(t)
+	poll := domain.MessagePoll{Question: "Choose", PublicVoters: true, Answers: []domain.MessagePollAnswer{{Text: "A", Option: []byte{0}}, {Text: "B", Option: []byte{1}}}}
+	sent, err := f.router.BotAPISendPoll(f.ctx, f.bot.ID, f.owner.ID, poll, nil, "", nil, nil, false, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	history, err := f.messages.GetHistory(f.ctx, f.owner.ID, domain.MessageFilter{HasPeer: true, Peer: domain.Peer{Type: domain.PeerTypeUser, ID: f.bot.ID}, Limit: 1})
+	if err != nil || len(history.Messages) != 1 {
+		t.Fatalf("poll recipient history=%+v err=%v", history, err)
+	}
+	userMessageID := history.Messages[0].ID
+	for _, options := range [][][]byte{{{0}}, {}} {
+		if _, err := f.router.onMessagesSendVote(WithUserID(f.ctx, f.owner.ID), &tg.MessagesSendVoteRequest{Peer: &tg.InputPeerUser{UserID: f.bot.ID, AccessHash: f.bot.AccessHash}, MsgID: userMessageID, Options: options}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := f.router.BotAPIStopPoll(f.ctx, f.bot.ID, f.owner.ID, sent.ID, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	updates := joinHTTPUpdates(t, f)
+	var polls, answers []map[string]any
+	for _, update := range updates {
+		if body, ok := update["poll"].(map[string]any); ok {
+			polls = append(polls, body)
+		}
+		if body, ok := update["poll_answer"].(map[string]any); ok {
+			answers = append(answers, body)
+		}
+	}
+	if len(polls) != 3 || polls[0]["total_voter_count"] != float64(1) || polls[1]["total_voter_count"] != float64(0) || polls[2]["is_closed"] != true {
+		t.Fatalf("poll transitions=%+v", polls)
+	}
+	if len(answers) != 2 {
+		t.Fatalf("answers=%+v", answers)
+	}
+	chosen := answers[0]["option_ids"].([]any)
+	if len(chosen) != 1 || chosen[0] != float64(0) || len(answers[1]["option_ids"].([]any)) != 0 || len(answers[1]["option_persistent_ids"].([]any)) != 0 {
+		t.Fatalf("vote/retraction=%+v", answers)
+	}
+}

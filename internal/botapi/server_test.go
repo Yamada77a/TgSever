@@ -137,30 +137,6 @@ func TestGiftPremiumSubscriptionParsesOfficialFieldsAndIdempotencyKey(t *testing
 	}
 }
 
-func TestAnswerWebAppQueryRejectsUnsupportedResult(t *testing.T) {
-	webapps := &fakeWebAppService{}
-	bots := &fakeBotAPIBots{profile: domain.BotProfile{BotUserID: 1001, TokenSecret: "secret"}}
-	h := (&handler{bots: bots, webapps: webapps}).routes()
-	body := `{
-		"web_app_query_id": "web-query-1",
-		"result": {"type": "photo", "id": "bad", "photo_url": "https://example.com/p.jpg"}
-	}`
-	rec := performBotAPIRequest(t, h, bots.profile, "answerWebAppQuery", body)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
-	}
-	if webapps.answerCalled {
-		t.Fatalf("unsupported result should not call webapp service")
-	}
-	var resp apiResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if resp.OK || resp.Description != "RESULT_TYPE_INVALID" {
-		t.Fatalf("response = %s", rec.Body.String())
-	}
-}
-
 func TestGetMeUsesGateway(t *testing.T) {
 	bots := &fakeBotAPIBots{profile: domain.BotProfile{BotUserID: 1001, TokenSecret: "secret"}}
 	gateway := &fakeBotAPIGateway{

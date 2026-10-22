@@ -342,8 +342,8 @@ func (r *Router) AnswerWebAppQueryFromBotAPI(ctx context.Context, botID int64, b
 	} else if !found {
 		return "", userBotRequiredErr()
 	}
-	if err := r.prepareTelegramLoginMarkup(ctx, botID, result.ReplyMarkup); err != nil {
-		return "", replyMarkupErr(err)
+	if err := r.validateBotAPIInlineResult(ctx, botID, &result); err != nil {
+		return "", err
 	}
 	if err := r.sendWebViewDomainResultMessage(ctx, botID, botQueryID, result); err != nil {
 		return "", err
@@ -371,8 +371,8 @@ func (r *Router) SavePreparedInlineMessageFromBotAPI(ctx context.Context, botID,
 	} else if !found {
 		return "", 0, userIDInvalidErr()
 	}
-	if err := r.prepareTelegramLoginMarkup(ctx, botID, result.ReplyMarkup); err != nil {
-		return "", 0, replyMarkupErr(err)
+	if err := r.validateBotAPIInlineResult(ctx, botID, &result); err != nil {
+		return "", 0, err
 	}
 	id, expireDate := r.inlines.savePreparedInlineContext(ctx, r.clock.Now(), botID, userID, result, peerTypes)
 	return id, expireDate, nil
@@ -407,6 +407,7 @@ func (r *Router) sendWebViewDomainResultMessage(ctx context.Context, botID int64
 		message:      result.Message,
 		entities:     tgMessageEntities(result.Entities),
 		media:        media,
+		richMessage:  result.RichMessage,
 		silent:       session.Silent,
 		replyTo:      session.ReplyTo,
 		replyToReady: true,

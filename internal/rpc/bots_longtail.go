@@ -773,20 +773,25 @@ func domainRequestedButtonFromTG(botUserID int64, _ tg.InputUserClass, button tg
 	var out domain.BotRequestedWebViewButton
 	out.BotUserID = botUserID
 	out.Text = strings.TrimSpace(button.Text)
+	style, icon, err := domainMarkupButtonStyle(&button)
+	if err != nil {
+		return out, err
+	}
+	out.Style, out.IconCustomEmojiID = style, icon
 	switch b := button.Type.(type) {
 	case *tg.InputButtonTypeRequestPeer:
 		out.ButtonID = b.ButtonID
 		out.PeerType, out.PeerFilter = domainRequestPeerFilter(b.PeerType)
-		fillRequestedManagedButton(&out, b.PeerType)
 		out.MaxQuantity = b.MaxQuantity
 		out.NameRequested = b.NameRequested
 		out.UsernameRequested = b.UsernameRequested
 		out.PhotoRequested = b.PhotoRequested
+		fillRequestedManagedButton(&out, b.PeerType)
 	case *tg.ButtonTypeRequestPeer:
 		out.ButtonID = b.ButtonID
 		out.PeerType, out.PeerFilter = domainRequestPeerFilter(b.PeerType)
-		fillRequestedManagedButton(&out, b.PeerType)
 		out.MaxQuantity = b.MaxQuantity
+		fillRequestedManagedButton(&out, b.PeerType)
 	default:
 		return domain.BotRequestedWebViewButton{}, buttonDataInvalidErr()
 	}
@@ -810,9 +815,13 @@ func requestPeerTypeName(peerType tg.RequestPeerTypeClass) string {
 }
 
 func tgKeyboardButtonRequestPeer(button domain.BotRequestedWebViewButton) *tg.KeyboardButton {
-	return &tg.KeyboardButton{Text: button.Text, Type: &tg.ButtonTypeRequestPeer{
+	out := &tg.KeyboardButton{Text: button.Text, Type: &tg.ButtonTypeRequestPeer{
 		ButtonID: button.ButtonID, PeerType: requestedButtonPeerType(button), MaxQuantity: button.MaxQuantity,
 	}}
+	if style, ok := tgMarkupButtonStyle(domain.MarkupButton{Style: button.Style, IconCustomEmojiID: button.IconCustomEmojiID}); ok {
+		out.SetStyle(style)
+	}
+	return out
 }
 
 func tgRequestPeerType(kind string) tg.RequestPeerTypeClass {

@@ -570,11 +570,7 @@ func removeSavedMusicDocument(in []domain.Document, id int64) []domain.Document 
 }
 
 func cloneDocument(in domain.Document) domain.Document {
-	out := in
-	out.FileReference = append([]byte(nil), in.FileReference...)
-	out.Attributes = append([]domain.DocumentAttribute(nil), in.Attributes...)
-	out.Thumbs = append([]domain.PhotoSize(nil), in.Thumbs...)
-	return out
+	return *domain.CloneDocumentPtr(&in)
 }
 
 func cloneDocuments(in []domain.Document) []domain.Document {

@@ -211,11 +211,11 @@ func (s *ChannelStore) GeneralForumTopic(ctx context.Context, viewerUserID, chan
 		return domain.ChannelForumTopic{}, err
 	}
 	water := waters[gid]
-	cond := channelTopicMessageCond(gid, "")
+	cond := channelTopicMessageCond(gid, "$2")
 	var topMsg int
 	if err := s.db.QueryRow(ctx, `
 SELECT COALESCE(MAX(cm.id), 0)::int FROM channel_messages cm
-WHERE cm.channel_id =  AND `+cond+` AND cm.id >  AND NOT cm.deleted`,
+WHERE cm.channel_id = $1 AND `+cond+` AND cm.id > $3 AND NOT cm.deleted`,
 		channelID, gid, member.AvailableMinID).Scan(&topMsg); err != nil {
 		return domain.ChannelForumTopic{}, fmt.Errorf("general top message: %w", err)
 	}
@@ -223,8 +223,8 @@ WHERE cm.channel_id =  AND `+cond+` AND cm.id >  AND NOT cm.deleted`,
 	if err := s.db.QueryRow(ctx, `
 SELECT COUNT(*)::int FROM (
   SELECT 1 FROM channel_messages cm
-  WHERE cm.channel_id =  AND `+cond+` AND cm.id >  AND cm.sender_user_id <>  AND NOT cm.deleted
-  LIMIT 
+  WHERE cm.channel_id = $1 AND `+cond+` AND cm.id > $3 AND cm.sender_user_id <> $4 AND NOT cm.deleted
+  LIMIT $5
 ) g`, channelID, gid, water.Inbox, viewerUserID, domain.MaxDialogUnreadCount).Scan(&unread); err != nil {
 		return domain.ChannelForumTopic{}, fmt.Errorf("general unread: %w", err)
 	}

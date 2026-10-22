@@ -608,9 +608,6 @@ func (r *Router) messageReplyFromInput(ctx context.Context, userID int64, peer d
 	if todoItemID < 0 || todoItemID > domain.MaxMessageBoxID || todoItemID != 0 && len(pollOption) > 0 {
 		return nil, replyMessageIDInvalidErr()
 	}
-	if _, ok := reply.GetPollOption(); ok {
-		return nil, pollOptionInvalidErr()
-	}
 	replyPeer := peer
 	if inputPeer, ok := reply.GetReplyToPeerID(); ok {
 		parsed, err := r.checkedMessageReadPeer(ctx, userID, inputPeer, false)
@@ -1085,6 +1082,7 @@ func appendMessageUserIDs(ids []int64, seen map[int64]struct{}, msg domain.Messa
 		add(msg.Forward.From.ID)
 	}
 	add(msg.ViaBotID)
+	add(msg.BusinessBotID)
 	if msg.GuestChatViaFrom.Type == domain.PeerTypeUser {
 		add(msg.GuestChatViaFrom.ID)
 	}

@@ -34,6 +34,7 @@ func cloneChannelMessage(in domain.ChannelMessage) domain.ChannelMessage {
 	in.Discussion = cloneChannelDiscussionRef(in.Discussion)
 	in.Replies = cloneChannelMessageReplies(in.Replies)
 	in.Reactions = cloneChannelMessageReactionsPtr(in.Reactions)
+	in.Media = cloneRequestedPeerMedia(in.Media)
 	if in.SuggestedPost != nil {
 		suggested := *in.SuggestedPost
 		if suggested.Price != nil {
@@ -61,6 +62,9 @@ func cloneChannelMessageAction(in *domain.ChannelMessageAction) *domain.ChannelM
 	out.Completed = append([]int(nil), in.Completed...)
 	out.Incompleted = append([]int(nil), in.Incompleted...)
 	out.TodoItems = append([]domain.MessageTodoItem(nil), in.TodoItems...)
+	for i := range out.TodoItems {
+		out.TodoItems[i].Entities = append([]domain.MessageEntity(nil), in.TodoItems[i].Entities...)
+	}
 	if in.Closed != nil {
 		v := *in.Closed
 		out.Closed = &v
@@ -72,8 +76,7 @@ func cloneChannelMessageAction(in *domain.ChannelMessageAction) *domain.ChannelM
 	if in.StarGift != nil {
 		g := *in.StarGift
 		if in.StarGift.Sticker != nil {
-			sticker := *in.StarGift.Sticker
-			g.Sticker = &sticker
+			g.Sticker = domain.CloneDocumentPtr(in.StarGift.Sticker)
 		}
 		out.StarGift = &g
 	}

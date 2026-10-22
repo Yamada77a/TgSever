@@ -183,6 +183,7 @@ func (h *handler) transferGift(w http.ResponseWriter, r *http.Request, botID int
 	}
 	writeAPIOK(w, result)
 }
+
 func APIOwnedGifts(page domain.BotAPIOwnedGiftPage) map[string]any {
 	gifts := make([]map[string]any, 0, len(page.Gifts))
 	for _, item := range page.Gifts {

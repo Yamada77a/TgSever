@@ -184,13 +184,17 @@ func tgMessageMedia(m *domain.MessageMedia) tg.MessageMediaClass {
 			if !m.ProductInvoice.Valid() {
 				return &tg.MessageMediaEmpty{}
 			}
-			return &tg.MessageMediaInvoice{
+			invoice := &tg.MessageMediaInvoice{
 				Title:       m.ProductInvoice.Title,
 				Description: m.ProductInvoice.Description,
 				Currency:    domain.PremiumCurrencyStars,
 				TotalAmount: m.ProductInvoice.AmountStars,
 				StartParam:  m.ProductInvoice.StartParam,
 			}
+			if m.ProductInvoice.Photo != nil {
+				invoice.SetPhoto(tgInlineWebDocument(*m.ProductInvoice.Photo))
+			}
+			return invoice
 		}
 		if m.Invoice == nil || !m.Invoice.Valid() {
 			return &tg.MessageMediaEmpty{}
