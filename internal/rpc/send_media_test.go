@@ -27,6 +27,7 @@ type fakeFiles struct {
 	photos             map[int64]domain.Photo
 	profile            map[fakeProfilePhotoKey]int64
 	profileHistory     map[fakeProfileHistoryKey]bool
+	offerErr           error
 	reactions          []domain.AvailableReaction
 	effects            []domain.AvailableEffect
 	sets               map[domain.StickerSetKind][]domain.StickerSet
@@ -572,6 +573,12 @@ func (f *fakeFiles) CreateAvatarFromUpload(_ context.Context, _ domain.UploadedF
 	photo := domain.Photo{ID: 778, AccessHash: 7, DCID: 2, Sizes: fakeAvatarStaticSizes()}
 	return f.putPhoto(photo), nil
 }
+func (f *fakeFiles) CreateAvatarFromBytes(ctx context.Context, _ []byte) (domain.Photo, error) {
+	return f.CreateAvatarFromUpload(ctx, domain.UploadedFileRef{})
+}
+func (f *fakeFiles) CreateAvatarVideoFromBytes(ctx context.Context, _ []byte, videoStartTs float64) (domain.Photo, error) {
+	return f.CreateAvatarVideoFromUpload(ctx, domain.UploadedFileRef{}, videoStartTs)
+}
 func (f *fakeFiles) CreateAvatarVideoFromUpload(_ context.Context, _ domain.UploadedFileRef, videoStartTs float64) (domain.Photo, error) {
 	photo := domain.Photo{ID: 779, AccessHash: 7, DCID: 2, Sizes: append(fakeAvatarStaticSizes(), domain.PhotoSize{Kind: domain.PhotoSizeKindVideo, Type: "u", W: 640, H: 640, Size: 1024, VideoStartTs: videoStartTs})}
 	return f.putPhoto(photo), nil
@@ -676,6 +683,9 @@ func (f *fakeFiles) SetCurrentProfilePhotoKind(_ context.Context, ownerType doma
 	return photo, true, nil
 }
 func (f *fakeFiles) OfferProfilePhoto(_ context.Context, ownerType domain.PeerType, ownerID, photoID int64, _ int) error {
+	if f.offerErr != nil {
+		return f.offerErr
+	}
 	if f.profileHistory == nil {
 		f.profileHistory = map[fakeProfileHistoryKey]bool{}
 	}

@@ -165,10 +165,20 @@ func (s *Service) CreateAvatarVideoFromBytes(ctx context.Context, data []byte, v
 		return domain.Photo{}, domain.ErrPhotoInvalid
 	}
 	fileID := randomID()
-	if _, err := s.SaveFilePart(ctx, 0, fileID, 0, data); err != nil {
-		return domain.Photo{}, err
+	parts := (len(data)-1)/MaxUploadPartBytes + 1
+	if parts > MaxUploadParts {
+		return domain.Photo{}, domain.ErrFilePartsInvalid
 	}
-	ref := domain.UploadedFileRef{OwnerUserID: 0, FileID: fileID, Parts: 1, Big: true}
+	for part := range parts {
+		end := (part + 1) * MaxUploadPartBytes
+		if end > len(data) {
+			end = len(data)
+		}
+		if _, err := s.SaveFilePart(ctx, 0, fileID, part, data[part*MaxUploadPartBytes:end]); err != nil {
+			return domain.Photo{}, err
+		}
+	}
+	ref := domain.UploadedFileRef{OwnerUserID: 0, FileID: fileID, Parts: parts, Big: true}
 	return s.createAvatarVideoFromUpload(ctx, ref, videoStartTs, nil)
 }
 
