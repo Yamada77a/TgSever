@@ -538,6 +538,8 @@ func messageSendErr(err error) error {
 		return balanceTooLowErr()
 	case errors.Is(err, domain.ErrUserFrozen):
 		return frozenMethodInvalidErr()
+	case errors.Is(err, domain.ErrBotAccessDenied):
+		return tgerr.New(403, "BOT_ACCESS_DENIED")
 	case errors.Is(err, domain.ErrChatForwardsRestricted):
 		return chatForwardsRestrictedErr()
 	case errors.Is(err, domain.ErrQuoteTextInvalid):
