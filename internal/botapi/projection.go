@@ -211,6 +211,12 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 			return nil, "", false
 		}
 		return map[string]any{"update_id": updateID, kind: body}, kind, true
+	case domain.UpdateEventBotChatJoinRequest:
+		body, ok := apiChatJoinRequest(event)
+		if !ok {
+			return nil, "", false
+		}
+		return map[string]any{"update_id": updateID, "chat_join_request": body}, "chat_join_request", true
 	case domain.UpdateEventBotMyChatMember, domain.UpdateEventBotChatMember:
 		body, ok := apiChatMemberUpdated(event)
 		if !ok {
@@ -260,6 +266,9 @@ func apiChatMemberUpdated(event domain.UpdateEvent) (map[string]any, bool) {
 		"date":            update.Date,
 		"old_chat_member": apiChatMember(old, subject, domain.CanEditChannelAdmin(viewer, old)),
 		"new_chat_member": apiChatMember(updated, subject, domain.CanEditChannelAdmin(viewer, updated)),
+	}
+	if update.Invite != nil {
+		out["invite_link"] = apiInviteLink(*update.Invite, userOf(update.Invite.AdminUserID), event.UserID)
 	}
 	if update.ViaJoinRequest {
 		out["via_join_request"] = true

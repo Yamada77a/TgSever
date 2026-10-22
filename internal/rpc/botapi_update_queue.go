@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"telesrv/internal/botapi"
@@ -940,6 +941,21 @@ func (r *Router) botAPIObjectAuthorized(ctx context.Context, botID int64, item d
 		}
 	}
 	switch item.Kind {
+	case "chat_join_request":
+		id, ok := body["query_id"].(string)
+		if !ok || r.deps.Channels == nil {
+			return false
+		}
+		queryID, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return false
+		}
+		query, err := r.deps.Channels.GetChatJoinQuery(ctx, queryID)
+		if err != nil || !query.CanResolve(botID, int(r.clock.Now().Unix()), "approve") {
+			return false
+		}
+		guard, err := r.deps.Channels.GetChannelGuardBot(ctx, query.ChannelID)
+		return err == nil && guard == botID
 	case "business_message", "edited_business_message", "deleted_business_messages":
 		connectionID, _ := body["business_connection_id"].(string)
 		chat, _ := body["chat"].(map[string]any)

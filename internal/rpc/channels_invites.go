@@ -26,9 +26,6 @@ func (r *Router) onMessagesExportChatInvite(ctx context.Context, req *tg.Message
 	if peer.Type != domain.PeerTypeChannel || peer.ID == 0 {
 		return nil, peerIDInvalidErr()
 	}
-	if req.UsageLimit < 0 || req.ExpireDate < 0 || len(req.Title) > domain.MaxChannelInviteTitleLength {
-		return nil, limitInvalidErr()
-	}
 	res, err := r.deps.Channels.ExportInvite(ctx, userID, domain.ExportChannelInviteRequest{
 		UserID:                userID,
 		ChannelID:             peer.ID,
@@ -125,11 +122,18 @@ func (r *Router) onMessagesImportChatInvite(ctx context.Context, hash string) (t
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrInviteRequestSent) && res.Channel.ID != 0 {
+			if result, queryErr := r.startChatJoinQuery(ctx, res); queryErr != nil {
+				return nil, queryErr
+			} else if result != nil {
+				return result, nil
+			}
 			r.pushPendingJoinRequestsToAdmins(ctx, res.Channel)
+			r.deliverChatJoinRequest(ctx, res)
 		}
 		return nil, channelInviteErr(err)
 	}
 	r.addOnlineChannelMemberships(res.Channel.ID, channelMemberUserIDs(res.Members)...)
+	r.prepareChannelInviteViewers(ctx, &res)
 	updates := r.channelOperationUpdates(ctx, userID, res)
 	r.pushChannelUpdates(ctx, userID, res.Channel.ID, res.Recipients, func(viewerUserID int64) *tg.Updates {
 		return r.channelOperationUpdates(ctx, viewerUserID, res)
@@ -222,9 +226,6 @@ func (r *Router) onMessagesEditExportedChatInvite(ctx context.Context, req *tg.M
 	if err != nil {
 		return nil, err
 	}
-	if req.ExpireDate < 0 || req.UsageLimit < 0 || len(req.Title) > domain.MaxChannelInviteTitleLength {
-		return nil, limitInvalidErr()
-	}
 	expireDate, hasExpireDate := req.GetExpireDate()
 	usageLimit, hasUsageLimit := req.GetUsageLimit()
 	requestNeeded, hasRequestNeeded := req.GetRequestNeeded()
@@ -283,6 +284,7 @@ func (r *Router) onMessagesDeleteRevokedExportedChatInvites(ctx context.Context,
 		return false, channelInviteErr(err)
 	}
 	r.invalidateRPCProjectionForChannel(view.Channel.ID)
+	r.pushPendingJoinRequestsToAdmins(ctx, view.Channel)
 	return true, nil
 }
 
@@ -303,6 +305,7 @@ func (r *Router) onMessagesDeleteExportedChatInvite(ctx context.Context, req *tg
 		return false, channelInviteErr(err)
 	}
 	r.invalidateRPCProjectionForChannel(view.Channel.ID)
+	r.pushPendingJoinRequestsToAdmins(ctx, view.Channel)
 	return true, nil
 }
 
@@ -405,6 +408,9 @@ func tgExportedChannelInvite(invite domain.ChannelInvite, publicBaseURL string) 
 		AdminID:       invite.AdminUserID,
 		Date:          invite.Date,
 	}
+	if invite.Date > 0 {
+		out.SetStartDate(invite.Date)
+	}
 	if invite.Title != "" {
 		out.SetTitle(invite.Title)
 	}
@@ -462,6 +468,12 @@ func channelInviteHashFromLink(link string) (string, error) {
 
 func channelInviteErr(err error) error {
 	switch {
+	case errors.Is(err, domain.ErrInviteExpireDateInvalid):
+		return tgerr400("EXPIRE_DATE_INVALID")
+	case errors.Is(err, domain.ErrInviteUsageLimitInvalid):
+		return tgerr400("USAGE_LIMIT_INVALID")
+	case errors.Is(err, domain.ErrInviteTitleInvalid):
+		return limitInvalidErr()
 	case errors.Is(err, domain.ErrInviteHashEmpty):
 		return tgerr400("INVITE_HASH_EMPTY")
 	case errors.Is(err, domain.ErrInviteHashInvalid):
