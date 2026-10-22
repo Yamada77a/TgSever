@@ -943,20 +943,20 @@ type ChannelMessageReactionsResult struct {
 
 // DeleteChannelParticipantReactionRequest removes one participant reaction on one message.
 type DeleteChannelParticipantReactionRequest struct {
-	UserID            int64
-	ChannelID         int64
-	MessageID         int
-	ParticipantUserID int64
-	Date              int
+	UserID      int64
+	ChannelID   int64
+	MessageID   int
+	Participant Peer
+	Date        int
 }
 
 // DeleteChannelParticipantReactionsRequest removes a bounded page of one participant's reactions.
 type DeleteChannelParticipantReactionsRequest struct {
-	UserID            int64
-	ChannelID         int64
-	ParticipantUserID int64
-	Limit             int
-	Date              int
+	UserID      int64
+	ChannelID   int64
+	Participant Peer
+	Limit       int
+	Date        int
 }
 
 // DeleteChannelParticipantReactionsResult describes moderation reaction clears.

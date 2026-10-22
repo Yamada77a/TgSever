@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"telesrv/internal/botapi"
 	"telesrv/internal/domain"
 )
 
@@ -114,4 +115,64 @@ func (r *Router) botAPIBusinessPeer(ctx context.Context, botID int64, connection
 		}
 	}
 	return ownerID, nil
+}
+
+func (r *Router) botAPIEnqueueBusinessMessage(ctx context.Context, botID int64, connectionID string, msg domain.Message, edited bool) {
+	if msg.ID <= 0 || msg.Deleted || r.deps.Users == nil {
+		return
+	}
+	var users []domain.User
+	for _, id := range []int64{msg.OwnerUserID, msg.From.ID, msg.Peer.ID} {
+		if id <= 0 {
+			continue
+		}
+		if user, found, err := r.deps.Users.ByID(ctx, botID, id); err == nil && found {
+			users = append(users, user)
+		}
+	}
+	object := botapi.SnapshotMessage(msg, users, nil)
+	object["business_connection_id"] = connectionID
+	if msg.BusinessBotID != 0 {
+		if sender, found, err := r.deps.Users.ByID(ctx, botID, msg.BusinessBotID); err == nil && found {
+			object["sender_business_bot"] = map[string]any{"id": sender.ID, "is_bot": true, "first_name": sender.FirstName, "username": sender.Username}
+		}
+	}
+	kind := domain.BotAPIUpdateKind("business_message")
+	if edited {
+		kind = domain.BotAPIUpdateKind("edited_business_message")
+	}
+	r.enqueueBotAPIObject(ctx, botID, kind, object)
+}
+
+func (r *Router) enqueueBotAPIBusinessPrivateMessage(ctx context.Context, result domain.SendPrivateTextResult) {
+	if result.Duplicate {
+		return
+	}
+	for _, message := range []domain.Message{result.SenderMessage, result.RecipientMessage} {
+		r.enqueueConnectedBusinessMessage(ctx, message, false)
+	}
+}
+
+func (r *Router) enqueueBotAPIBusinessPrivateEdits(ctx context.Context, result domain.EditMessageResult) {
+	for _, item := range result.Edited {
+		r.enqueueConnectedBusinessMessage(ctx, item.Message, true)
+	}
+}
+
+func (r *Router) enqueueConnectedBusinessMessage(ctx context.Context, message domain.Message, edited bool) {
+	svc, ok := r.accountBusinessAutomation()
+	if !ok || message.ID == 0 || message.Peer.Type != domain.PeerTypeUser || message.Deleted {
+		return
+	}
+	connection, found, err := svc.GetConnectedBusinessBot(ctx, message.OwnerUserID)
+	if err != nil || !found || connection.Disabled {
+		return
+	}
+	if connection.ConnectionID == message.BusinessConnectionID {
+		return
+	}
+	if _, err := r.botAPIBusinessPeer(ctx, connection.BotUserID, connection.ConnectionID, "", message.Peer); err != nil {
+		return
+	}
+	r.botAPIEnqueueBusinessMessage(ctx, connection.BotUserID, connection.ConnectionID, message, edited)
 }
