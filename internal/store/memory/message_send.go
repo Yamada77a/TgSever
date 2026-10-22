@@ -161,7 +161,7 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 		GroupedID:            req.GroupedID,
 		Effect:               req.Effect,
 		ReplyMarkup:          cloneReplyMarkup(req.ReplyMarkup),
-		RichMessage:          cloneRichMessage(req.RichMessage),
+		RichMessage:          domain.CloneRichMessage(req.RichMessage),
 		ReplyTo:              cloneMessageReply(senderReply),
 		Forward:              cloneMessageForward(req.Forward),
 		Pts:                  nextPTS(req.SenderUserID),
@@ -186,7 +186,7 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 		// recipient = sender 是值拷贝，共享 sender.ReplyMarkup 指针/Data 切片——深拷
 		// 让双盒各持独立快照（与 postgres 每盒独立 decode 对齐，I3/I2）。
 		recipient.ReplyMarkup = cloneReplyMarkup(sender.ReplyMarkup)
-		recipient.RichMessage = cloneRichMessage(sender.RichMessage)
+		recipient.RichMessage = domain.CloneRichMessage(sender.RichMessage)
 		recipient.Pts = nextPTS(req.RecipientUserID)
 		recipient.MediaUnread = req.Media.HasUnreadPayload()
 	}

@@ -37,6 +37,7 @@ type privateSendFingerprintPayload struct {
 	Silent               bool                       `json:"silent"`
 	NoForwards           bool                       `json:"noforwards"`
 	ReplyTo              *domain.MessageReply       `json:"reply_to,omitempty"`
+	ReplyAllowMissing    bool                       `json:"reply_allow_missing,omitempty"`
 	Forward              *domain.MessageForward     `json:"forward,omitempty"`
 	TTLPeriod            int                        `json:"ttl_period"`
 	ViaBotID             int64                      `json:"via_bot_id"`
@@ -52,37 +53,39 @@ type privateSendFingerprintPayload struct {
 // Operational projection fields (Date, recipient/mention lists, PostAuthor and lookup hints) are
 // intentionally absent: they may change after the first commit and cannot redefine a replay.
 type channelSendFingerprintPayload struct {
-	Version     int                          `json:"version"`
-	ChannelID   int64                        `json:"channel_id"`
-	Message     string                       `json:"message"`
-	Entities    []domain.MessageEntity       `json:"entities"`
-	Media       *domain.MessageMedia         `json:"media"`
-	Silent      bool                         `json:"silent"`
-	NoForwards  bool                         `json:"noforwards"`
-	ReplyTo     *domain.MessageReply         `json:"reply_to,omitempty"`
-	Forward     *domain.MessageForward       `json:"forward,omitempty"`
-	ViaBotID    int64                        `json:"via_bot_id"`
-	GroupedID   int64                        `json:"grouped_id"`
-	ReplyMarkup *domain.MessageReplyMarkup   `json:"reply_markup"`
-	RichMessage *domain.MessageRichMessage   `json:"rich_message"`
-	SendAs      *domain.Peer                 `json:"send_as,omitempty"`
-	Action      *domain.ChannelMessageAction `json:"action,omitempty"`
-	TTLPeriod   int                          `json:"ttl_period"`
+	Version           int                          `json:"version"`
+	ChannelID         int64                        `json:"channel_id"`
+	Message           string                       `json:"message"`
+	Entities          []domain.MessageEntity       `json:"entities"`
+	Media             *domain.MessageMedia         `json:"media"`
+	Silent            bool                         `json:"silent"`
+	NoForwards        bool                         `json:"noforwards"`
+	ReplyTo           *domain.MessageReply         `json:"reply_to,omitempty"`
+	ReplyAllowMissing bool                         `json:"reply_allow_missing,omitempty"`
+	Forward           *domain.MessageForward       `json:"forward,omitempty"`
+	ViaBotID          int64                        `json:"via_bot_id"`
+	GroupedID         int64                        `json:"grouped_id"`
+	ReplyMarkup       *domain.MessageReplyMarkup   `json:"reply_markup"`
+	RichMessage       *domain.MessageRichMessage   `json:"rich_message"`
+	SendAs            *domain.Peer                 `json:"send_as,omitempty"`
+	Action            *domain.ChannelMessageAction `json:"action,omitempty"`
+	TTLPeriod         int                          `json:"ttl_period"`
 }
 
 type monoforumSendFingerprintPayload struct {
-	Version        int                    `json:"version"`
-	ChannelID      int64                  `json:"channel_id"`
-	SavedPeer      domain.Peer            `json:"saved_peer"`
-	Message        string                 `json:"message"`
-	Entities       []domain.MessageEntity `json:"entities"`
-	Media          *domain.MessageMedia   `json:"media"`
-	ReplyTo        *domain.MessageReply   `json:"reply_to"`
-	Forward        *domain.MessageForward `json:"forward,omitempty"`
-	Silent         bool                   `json:"silent"`
-	NoForwards     bool                   `json:"noforwards"`
-	SuggestedPost  *domain.SuggestedPost  `json:"suggested_post,omitempty"`
-	AllowPaidStars int64                  `json:"allow_paid_stars"`
+	Version           int                    `json:"version"`
+	ChannelID         int64                  `json:"channel_id"`
+	SavedPeer         domain.Peer            `json:"saved_peer"`
+	Message           string                 `json:"message"`
+	Entities          []domain.MessageEntity `json:"entities"`
+	Media             *domain.MessageMedia   `json:"media"`
+	ReplyTo           *domain.MessageReply   `json:"reply_to"`
+	ReplyAllowMissing bool                   `json:"reply_allow_missing,omitempty"`
+	Forward           *domain.MessageForward `json:"forward,omitempty"`
+	Silent            bool                   `json:"silent"`
+	NoForwards        bool                   `json:"noforwards"`
+	SuggestedPost     *domain.SuggestedPost  `json:"suggested_post,omitempty"`
+	AllowPaidStars    int64                  `json:"allow_paid_stars"`
 }
 
 // PrivateSendFingerprint returns a SHA-256 fingerprint of the original send
@@ -104,6 +107,7 @@ func PrivateSendFingerprint(req domain.SendPrivateTextRequest) ([]byte, error) {
 		Silent:               req.Silent,
 		NoForwards:           req.NoForwards,
 		ReplyTo:              req.ReplyTo,
+		ReplyAllowMissing:    req.ReplyTo != nil && req.ReplyTo.AllowMissing,
 		Forward:              req.Forward,
 		TTLPeriod:            req.TTLPeriod,
 		ViaBotID:             req.ViaBotID,
@@ -131,22 +135,23 @@ func ChannelSendFingerprint(req domain.SendChannelMessageRequest) ([]byte, error
 		return append([]byte(nil), req.IdempotencyFingerprint...), nil
 	}
 	payload, err := json.Marshal(channelSendFingerprintPayload{
-		Version:     channelSendFingerprintVersion,
-		ChannelID:   req.ChannelID,
-		Message:     req.Message,
-		Entities:    req.Entities,
-		Media:       req.Media,
-		Silent:      req.Silent,
-		NoForwards:  req.NoForwards,
-		ReplyTo:     req.ReplyTo,
-		Forward:     req.Forward,
-		ViaBotID:    req.ViaBotID,
-		GroupedID:   req.GroupedID,
-		ReplyMarkup: req.ReplyMarkup,
-		RichMessage: req.RichMessage,
-		SendAs:      req.SendAs,
-		Action:      req.Action,
-		TTLPeriod:   req.TTLPeriod,
+		Version:           channelSendFingerprintVersion,
+		ChannelID:         req.ChannelID,
+		Message:           req.Message,
+		Entities:          req.Entities,
+		Media:             req.Media,
+		Silent:            req.Silent,
+		NoForwards:        req.NoForwards,
+		ReplyTo:           req.ReplyTo,
+		ReplyAllowMissing: req.ReplyTo != nil && req.ReplyTo.AllowMissing,
+		Forward:           req.Forward,
+		ViaBotID:          req.ViaBotID,
+		GroupedID:         req.GroupedID,
+		ReplyMarkup:       req.ReplyMarkup,
+		RichMessage:       req.RichMessage,
+		SendAs:            req.SendAs,
+		Action:            req.Action,
+		TTLPeriod:         req.TTLPeriod,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal channel send fingerprint: %w", err)
@@ -166,18 +171,19 @@ func MonoforumSendFingerprint(req domain.SendMonoforumMessageRequest) ([]byte, e
 		return append([]byte(nil), req.IdempotencyFingerprint...), nil
 	}
 	payload, err := json.Marshal(monoforumSendFingerprintPayload{
-		Version:        channelSendFingerprintVersion,
-		ChannelID:      req.MonoforumID,
-		SavedPeer:      req.SavedPeer,
-		Message:        req.Message,
-		Entities:       req.Entities,
-		Media:          req.Media,
-		ReplyTo:        req.ReplyTo,
-		Forward:        req.Forward,
-		Silent:         req.Silent,
-		NoForwards:     req.NoForwards,
-		SuggestedPost:  req.SuggestedPost,
-		AllowPaidStars: req.AllowPaidStars,
+		Version:           channelSendFingerprintVersion,
+		ChannelID:         req.MonoforumID,
+		SavedPeer:         req.SavedPeer,
+		Message:           req.Message,
+		Entities:          req.Entities,
+		Media:             req.Media,
+		ReplyTo:           req.ReplyTo,
+		ReplyAllowMissing: req.ReplyTo != nil && req.ReplyTo.AllowMissing,
+		Forward:           req.Forward,
+		Silent:            req.Silent,
+		NoForwards:        req.NoForwards,
+		SuggestedPost:     req.SuggestedPost,
+		AllowPaidStars:    req.AllowPaidStars,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal monoforum send fingerprint: %w", err)

@@ -124,16 +124,17 @@ const replyLockStripes = 256
 
 // Service 提供 bot 账号业务。
 type Service struct {
-	users      store.UserStore
-	bots       store.BotStore
-	messages   store.MessageStore
-	blocker    blockChecker
-	channels   publicChannelUsernameResolver
-	stickers   stickerSetCreator
-	installer  userStickerSetInstaller
-	aiChat     aiChatGenerator
-	premium    premiumStorefront
-	gifCatalog interface {
+	users         store.UserStore
+	bots          store.BotStore
+	messages      store.MessageStore
+	blocker       blockChecker
+	channels      publicChannelUsernameResolver
+	stickers      stickerSetCreator
+	installer     userStickerSetInstaller
+	aiChat        aiChatGenerator
+	premium       premiumStorefront
+	paidBroadcast store.BotBroadcastStore
+	gifCatalog    interface {
 		ListGifCatalog(context.Context, bool) ([]domain.GifCatalogEntry, error)
 		GetDocuments(context.Context, []int64) ([]domain.Document, error)
 	}

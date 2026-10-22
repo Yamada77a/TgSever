@@ -55,6 +55,12 @@ func tgMessageMedia(m *domain.MessageMedia) tg.MessageMediaClass {
 		if m.TTLSeconds > 0 {
 			out.TTLSeconds = m.TTLSeconds
 		}
+		if m.VideoCover != nil {
+			out.SetVideoCover(tgPhoto(*m.VideoCover))
+		}
+		if m.VideoTimestamp > 0 {
+			out.SetVideoTimestamp(int(m.VideoTimestamp))
+		}
 		return out
 	case domain.MessageMediaKindContact:
 		if m.Contact == nil {

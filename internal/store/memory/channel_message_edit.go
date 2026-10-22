@@ -92,7 +92,7 @@ func (s *ChannelStore) EditChannelMessage(_ context.Context, req domain.EditChan
 		msg.ReplyMarkup = cloneReplyMarkup(req.ReplyMarkup)
 	}
 	if req.SetRichMessage {
-		msg.RichMessage = cloneRichMessage(req.RichMessage)
+		msg.RichMessage = domain.CloneRichMessage(req.RichMessage)
 	}
 	msg.EditDate = req.EditDate
 	msg.Pts = pts

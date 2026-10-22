@@ -98,7 +98,7 @@ func cloneMessage(msg domain.Message) domain.Message {
 	msg.Forward = cloneMessageForward(msg.Forward)
 	msg.Reactions = cloneChannelMessageReactionsPtr(msg.Reactions)
 	msg.ReplyMarkup = cloneReplyMarkup(msg.ReplyMarkup)
-	msg.RichMessage = cloneRichMessage(msg.RichMessage)
+	msg.RichMessage = domain.CloneRichMessage(msg.RichMessage)
 	return msg
 }
 
@@ -110,12 +110,10 @@ func cloneRequestedPeerMedia(media *domain.MessageMedia) *domain.MessageMedia {
 		return nil
 	}
 	clone := *media
-	if media.LivePhotoVideo != nil {
-		video := *media.LivePhotoVideo
-		video.FileReference = append([]byte(nil), media.LivePhotoVideo.FileReference...)
-		video.Attributes = append([]domain.DocumentAttribute(nil), media.LivePhotoVideo.Attributes...)
-		clone.LivePhotoVideo = &video
-	}
+	clone.Photo = domain.ClonePhotoPtr(media.Photo)
+	clone.Document = domain.CloneDocumentPtr(media.Document)
+	clone.LivePhotoVideo = domain.CloneDocumentPtr(media.LivePhotoVideo)
+	clone.VideoCover = domain.ClonePhotoPtr(media.VideoCover)
 	if media.ServiceAction == nil {
 		return &clone
 	}
@@ -170,20 +168,6 @@ func cloneReplyMarkup(m *domain.MessageReplyMarkup) *domain.MessageReplyMarkup {
 			clone.Keyboard[i] = append([]domain.MarkupButton(nil), row...)
 		}
 	}
-	return &clone
-}
-
-// cloneRichMessage 深拷 Layer 228 富文本快照：复制不透明 blocks、Bot API 投影与内嵌媒体切片，
-// 避免发送方/接收方两行共享底层切片（与 postgres 每盒独立 decode 对齐）。
-func cloneRichMessage(m *domain.MessageRichMessage) *domain.MessageRichMessage {
-	if m == nil {
-		return nil
-	}
-	clone := *m
-	clone.Blocks = append([]byte(nil), m.Blocks...)
-	clone.Photos = append([]domain.Photo(nil), m.Photos...)
-	clone.Documents = append([]domain.Document(nil), m.Documents...)
-	clone.BotAPIProjection = append([]byte(nil), m.BotAPIProjection...)
 	return &clone
 }
 

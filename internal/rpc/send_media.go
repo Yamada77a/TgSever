@@ -847,7 +847,18 @@ func (r *Router) resolveInputMedia(ctx context.Context, userID int64, input tg.I
 		if !found {
 			return nil, photoInvalidErr()
 		}
-		return &domain.MessageMedia{Kind: domain.MessageMediaKindPhoto, Photo: &photo, Spoiler: in.Spoiler, TTLSeconds: in.TTLSeconds}, nil
+		media := &domain.MessageMedia{Kind: domain.MessageMediaKindPhoto, Photo: &photo, Spoiler: in.Spoiler, TTLSeconds: in.TTLSeconds}
+		if video, ok := in.GetVideo(); ok {
+			resolved, err := r.resolveInputMedia(ctx, userID, &tg.InputMediaDocument{ID: video})
+			if err != nil {
+				return nil, err
+			}
+			if resolved.Document == nil || !botAPIDocumentMatchesKind(*resolved.Document, "video") {
+				return nil, mediaInvalidErr()
+			}
+			media.LivePhotoVideo = resolved.Document
+		}
+		return media, nil
 	case *tg.InputMediaDocument:
 		if r.deps.Files == nil {
 			return nil, mediaInvalidErr()
@@ -873,7 +884,18 @@ func (r *Router) resolveInputMedia(ctx context.Context, userID int64, input tg.I
 			r.log.Warn("sendMedia references unknown document", zap.Int64s("doc_ids", docIDs), zap.Int64("user_id", userID))
 			return nil, mediaInvalidErr()
 		}
-		return messageMediaFromDocument(doc, in.Spoiler, in.TTLSeconds), nil
+		media := messageMediaFromDocument(doc, in.Spoiler, in.TTLSeconds)
+		if cover, ok := in.GetVideoCover(); ok {
+			resolved, err := r.resolveInputMedia(ctx, userID, &tg.InputMediaPhoto{ID: cover})
+			if err != nil {
+				return nil, err
+			}
+			media.VideoCover = resolved.Photo
+		}
+		if timestamp, ok := in.GetVideoTimestamp(); ok {
+			media.VideoTimestamp = float64(timestamp)
+		}
+		return media, nil
 	case *tg.InputMediaGeoPoint:
 		geo, err := domainGeoPointFromInput(in.GeoPoint)
 		if err != nil {
