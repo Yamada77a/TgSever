@@ -489,6 +489,12 @@ func tgMessageReplyHeader(m domain.Message) tg.MessageReplyHeaderClass {
 		return nil
 	}
 	header := &tg.MessageReplyHeader{}
+	if m.ReplyTo.ChecklistTaskID > 0 {
+		header.SetTodoItemID(m.ReplyTo.ChecklistTaskID)
+	}
+	if len(m.ReplyTo.PollOption) > 0 {
+		header.SetPollOption(m.ReplyTo.PollOption)
+	}
 	if m.ReplyTo.ForumTopic {
 		header.SetForumTopic(true)
 	}

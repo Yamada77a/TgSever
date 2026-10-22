@@ -33,7 +33,15 @@ func (r *Router) BotAPISendInvoice(
 	botID, chatID int64,
 	title, description, payload string,
 	amount int64,
+	allowPaid bool,
 ) (domain.Message, error) {
+	randomID := randomNonZeroInt64()
+	return r.botAPIBroadcastMessage(ctx, botID, fmt.Sprintf("invoice:%d", randomID), allowPaid, func(sendCtx context.Context) (domain.Message, error) {
+		return r.botAPISendInvoice(sendCtx, botID, chatID, title, description, payload, amount, randomID)
+	})
+}
+
+func (r *Router) botAPISendInvoice(ctx context.Context, botID, chatID int64, title, description, payload string, amount, randomID int64) (domain.Message, error) {
 	if r == nil || r.deps.Messages == nil || r.deps.Bots == nil || botID == 0 {
 		return domain.Message{}, errors.New("BOT_INVALID")
 	}
@@ -100,7 +108,7 @@ func (r *Router) BotAPISendInvoice(
 	}
 	result, err := payments.CreateBotInvoiceMessage(ctx, domain.BotInvoice{
 		BotUserID: botID, ChatID: peer.ID, Title: title, Description: description, Amount: amount, Currency: domain.PremiumCurrencyStars, Payload: payload, Date: now,
-	}, domain.SendPrivateTextRequest{SenderUserID: botID, RecipientUserID: peer.ID, RandomID: randomNonZeroInt64(), Media: media, ReplyMarkup: markup, Date: now})
+	}, domain.SendPrivateTextRequest{SenderUserID: botID, RecipientUserID: peer.ID, RandomID: randomID, Media: media, ReplyMarkup: markup, Date: now})
 	if err != nil {
 		return domain.Message{}, invoiceStoreErr(err)
 	}

@@ -894,7 +894,7 @@ func apiLocation(geo domain.MessageGeoPoint, live *domain.MessageGeoLive) map[st
 		out["horizontal_accuracy"] = float64(geo.AccuracyRadius)
 	}
 	if live != nil {
-		if live.Period > 0 {
+		if live.Period > 0 && !live.Stopped {
 			out["live_period"] = live.Period
 		}
 		if live.Heading > 0 {
@@ -972,6 +972,7 @@ func apiPoll(poll domain.MessagePoll, users map[int64]domain.User) map[string]an
 		"options": options, "total_voter_count": totalVoters, "is_closed": poll.Closed,
 		"is_anonymous": !poll.PublicVoters, "type": pollType,
 		"allows_multiple_answers": poll.MultipleChoice, "allows_revoting": !poll.RevotingDisabled,
+		"members_only": false,
 	}
 	if entities := apiMessageEntities(poll.QuestionEntities, users); len(entities) > 0 {
 		out["question_entities"] = entities

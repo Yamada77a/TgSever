@@ -603,7 +603,9 @@ func (r *Router) messageReplyFromInput(ctx context.Context, userID int64, peer d
 	if _, ok := reply.GetMonoforumPeerID(); ok {
 		return nil, replyToMonoforumPeerInvalidErr()
 	}
-	if _, ok := reply.GetTodoItemID(); ok {
+	todoItemID, _ := reply.GetTodoItemID()
+	pollOption, _ := reply.GetPollOption()
+	if todoItemID < 0 || todoItemID > domain.MaxMessageBoxID || todoItemID != 0 && len(pollOption) > 0 {
 		return nil, replyMessageIDInvalidErr()
 	}
 	if _, ok := reply.GetPollOption(); ok {
@@ -656,12 +658,14 @@ func (r *Router) messageReplyFromInput(ctx context.Context, userID int64, peer d
 		return nil, replyMessageIDInvalidErr()
 	}
 	return &domain.MessageReply{
-		MessageID:     reply.ReplyToMsgID,
-		Peer:          replyPeer,
-		TopMessageID:  topMsgID,
-		QuoteText:     quoteText,
-		QuoteEntities: domainMessageEntities(quoteEntities),
-		QuoteOffset:   quoteOffset,
+		MessageID:       reply.ReplyToMsgID,
+		Peer:            replyPeer,
+		TopMessageID:    topMsgID,
+		QuoteText:       quoteText,
+		QuoteEntities:   domainMessageEntities(quoteEntities),
+		QuoteOffset:     quoteOffset,
+		ChecklistTaskID: todoItemID,
+		PollOption:      append([]byte(nil), pollOption...),
 	}, nil
 }
 

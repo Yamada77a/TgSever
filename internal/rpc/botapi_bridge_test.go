@@ -86,6 +86,7 @@ func newBotAPIBridgeFixture(t *testing.T) botAPIBridgeFixture {
 	messagesService := appmessages.NewService(messageStore, dialogStore)
 	sessions := &captureSessions{channelMembers: map[int64][]int64{channel.ID: {owner.ID, member.ID, bot.ID}}}
 	files := &fakeFiles{photos: map[int64]domain.Photo{}, docs: map[int64]domain.Document{}}
+	commerce := memory.NewBotCommerceStore(memory.NewStarsStore(), botStore, messageStore, channelStore)
 	router := New(Config{DC: 2, IP: "127.0.0.1", Port: 2398}, Deps{
 		Users:         usersService,
 		Messages:      messagesService,
@@ -94,6 +95,8 @@ func newBotAPIBridgeFixture(t *testing.T) botAPIBridgeFixture {
 		Files:         files,
 		Polls:         apppolls.NewService(pollStore),
 		BotAPIUpdates: memory.NewBotAPIUpdateStore(),
+		BotCommerce:   commerce,
+		BotBroadcast:  commerce,
 		Sessions:      sessions,
 	}, zaptest.NewLogger(t), clock.System)
 	return botAPIBridgeFixture{

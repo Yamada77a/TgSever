@@ -40,6 +40,7 @@ func TestBotAPICallbackQueryPrivatePollingAndAnswer(t *testing.T) {
 		domain.Peer{Type: domain.PeerTypeUser, ID: fixture.bot.ID},
 		sent.RecipientMessage.ID,
 		[]byte("forged-callback-data"),
+		false,
 	); !tgerr.Is(err, "DATA_INVALID") {
 		t.Fatalf("forged callback data err = %v, want DATA_INVALID", err)
 	}

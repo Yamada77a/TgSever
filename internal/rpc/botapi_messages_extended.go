@@ -86,3 +86,44 @@ func (r *Router) botAPIReactionModerationPeer(ctx context.Context, botID, chatID
 	}
 	return peer, nil
 }
+
+func (r *Router) botAPIBusinessEditTarget(ctx context.Context, botID, owner int64, connection string, peer domain.Peer, id int) (domain.Message, error) {
+	msg, err := r.botAPIReloadMessage(ctx, owner, peer, id)
+	if err != nil {
+		return domain.Message{}, err
+	}
+	if !msg.Out {
+		return domain.Message{}, messageAuthorRequiredErr()
+	}
+	inlineKeyboard := msg.ReplyMarkup != nil && len(msg.ReplyMarkup.Inline) > 0
+	if msg.BusinessBotID != botID && !inlineKeyboard && int64(r.clock.Now().Unix())-int64(msg.Date) >= 48*3600 {
+		return domain.Message{}, messageEditForbiddenErr()
+	}
+	return msg, nil
+}
+
+func (r *Router) botAPIBusinessEditMedia(ctx context.Context, botID, owner int64, connection string, current domain.Message, media *domain.MessageMedia, replaceTodo, set bool, markup *domain.MessageReplyMarkup) (domain.Message, error) {
+	if set {
+		if err := domain.ValidateReplyMarkup(markup); err != nil {
+			return domain.Message{}, replyMarkupErr(err)
+		}
+		if err := r.validateReplyMarkupForPeer(ctx, botID, current.Peer, markup); err != nil {
+			return domain.Message{}, err
+		}
+		effective := media
+		if effective == nil {
+			effective = current.Media
+		}
+		if err := domain.ValidateReplyMarkupMedia(markup, effective); err != nil {
+			return domain.Message{}, replyMarkupErr(err)
+		}
+	}
+	res, err := r.deps.Messages.EditMessage(ctx, owner, domain.EditMessageRequest{OwnerUserID: owner, Peer: current.Peer, ID: current.ID, Message: current.Body, Entities: current.Entities, Media: media, ReplaceTodo: replaceTodo, SetRichMessage: media != nil && current.RichMessage != nil, SetReplyMarkup: set, ReplyMarkup: markup, EditDate: int(r.clock.Now().Unix())})
+	if err != nil {
+		return domain.Message{}, messageEditErr(err)
+	}
+	r.enqueueBotAPIPrivateEditUpdatesAsync(ctx, res)
+	msg := res.Self().Message
+	r.botAPIEnqueueBusinessMessage(ctx, botID, connection, msg, true)
+	return msg, nil
+}
