@@ -43,6 +43,13 @@ func (s *ChannelStore) SendMonoforumMessage(ctx context.Context, req domain.Send
 		}); err != nil {
 			return domain.SendChannelMessageResult{}, err
 		} else if found {
+			if _, broadcast := store.BotBroadcastFromContext(ctx); broadcast {
+				if err := withTx(ctx, s.db, "complete monoforum broadcast replay", func(tx pgx.Tx) error {
+					return commitBotBroadcastTx(ctx, tx, nil, &dup.Message, true)
+				}); err != nil {
+					return domain.SendChannelMessageResult{}, err
+				}
+			}
 			return dup, nil
 		}
 	}
@@ -261,6 +268,9 @@ ORDER BY user_id`, parent.ID)
 		return domain.SendChannelMessageResult{}, err
 	}
 	rows.Close()
+	if err := commitBotBroadcastTx(ctx, tx, nil, &msg, false); err != nil {
+		return domain.SendChannelMessageResult{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return domain.SendChannelMessageResult{}, fmt.Errorf("commit send monoforum: %w", err)
 	}

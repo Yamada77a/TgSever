@@ -1141,6 +1141,7 @@ func run(logger *zap.Logger) error {
 	}
 
 	botStore := postgres.NewBotStore(pool)
+	botCommerceStore := postgres.NewBotCommerceStore(pool)
 	// userCache 与 users 服务共享同一实例：bot 元数据写入（version bump）后必须
 	// 失效缓存，否则 TTL 内 getUsers 回旧 first_name/旧 bot_info_version。
 	userCache := redisstore.NewUserCache(rdb, redisstore.DefaultUserCacheTTL)
@@ -2012,6 +2013,8 @@ func run(logger *zap.Logger) error {
 		BootstrapUpdates:             bootstrapUpdateStore,
 		BotAPIUpdates:                botAPIUpdateStore,
 		BotCallbacks:                 botCallbackStore,
+		BotCommerce:                  botCommerceStore,
+		BotBroadcast:                 botCommerceStore,
 		PushDevices:                  pushDeviceStore,
 		Contacts:                     contactsService,
 		Dialogs:                      dialogsService,

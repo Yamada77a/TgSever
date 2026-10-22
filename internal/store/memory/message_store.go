@@ -23,7 +23,8 @@ type MessageStore struct {
 	dialogs             *DialogStore
 	updateEvents        *UpdateEventStore
 	// polls 是共享 poll 权威（投票校验与读路径 enrichment）；nil 时 poll 链路按未接入处理。
-	polls *PollStore
+	polls    *PollStore
+	commerce *BotCommerceStore
 	// savedPins 是收藏夹子会话置顶顺序（下标即 pinned_order，越小越前）。
 	savedPins map[int64][]domain.Peer
 	// privateNoForwards is keyed by the sorted user pair. Requests are keyed by

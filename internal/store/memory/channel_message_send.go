@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func (s *ChannelStore) SendChannelMessage(_ context.Context, req domain.SendChannelMessageRequest) (domain.SendChannelMessageResult, error) {
+func (s *ChannelStore) SendChannelMessage(ctx context.Context, req domain.SendChannelMessageRequest) (domain.SendChannelMessageResult, error) {
 	if req.UserID == 0 || req.ChannelID == 0 {
 		return domain.SendChannelMessageResult{}, domain.ErrChannelInvalid
 	}
@@ -26,8 +26,26 @@ func (s *ChannelStore) SendChannelMessage(_ context.Context, req domain.SendChan
 		}
 		req.IdempotencyFingerprint = fingerprint
 	}
+	commerce, broadcast, err := lockMemoryBroadcast(ctx)
+	if err != nil {
+		return domain.SendChannelMessageResult{}, err
+	}
+	if commerce != nil {
+		defer commerce.mu.Unlock()
+		if commerce.channels != s {
+			return domain.SendChannelMessageResult{}, domain.ErrBotBroadcastReservation
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	res, err := s.sendChannelMessageLocked(req, fingerprint)
+	if err == nil && commerce != nil {
+		commerce.commitBroadcastLocked(broadcast, nil, &res.Message, res.Duplicate)
+	}
+	return res, err
+}
+
+func (s *ChannelStore) sendChannelMessageLocked(req domain.SendChannelMessageRequest, fingerprint []byte) (domain.SendChannelMessageResult, error) {
 	if req.RandomID != 0 {
 		if replay, found, replayErr := s.lookupChannelSendReplayLocked(domain.ChannelSendReplayRequest{
 			ChannelID:              req.ChannelID,

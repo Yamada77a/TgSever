@@ -74,6 +74,7 @@ func (w channelReadWatermark) advance(userID int64, maxID int) channelReadWaterm
 
 // ChannelStore is an in-memory channel/supergroup store for tests and local development.
 type ChannelStore struct {
+	commerce   *BotCommerceStore
 	mu         sync.RWMutex
 	nextID     int64
 	nextHash   int64

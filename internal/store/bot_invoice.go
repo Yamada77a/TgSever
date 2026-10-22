@@ -6,7 +6,7 @@ import (
 )
 
 // BotInvoicePayments commits invoice state, both ledgers, messages and durable delivery together.
-// There is no in-memory or multi-store fallback.
+// Each backend owns the entire aggregate; there is no multi-store fallback.
 type BotInvoicePayments interface {
 	CreateBotInvoiceMessage(context.Context, domain.BotInvoice, domain.SendPrivateTextRequest) (domain.SendPrivateTextResult, error)
 	PayBotInvoice(context.Context, int64, int64, int) (domain.SendPrivateTextResult, error)

@@ -44,9 +44,12 @@ func (s *MessageStore) Create(_ context.Context, msg domain.Message) (domain.Mes
 	return msg, nil
 }
 
-func (s *MessageStore) SendPrivateText(_ context.Context, req domain.SendPrivateTextRequest) (domain.SendPrivateTextResult, error) {
+func (s *MessageStore) SendPrivateText(ctx context.Context, req domain.SendPrivateTextRequest) (domain.SendPrivateTextResult, error) {
 	if !req.HasContent() {
 		return domain.SendPrivateTextResult{}, domain.ErrMessageEmpty
+	}
+	if _, broadcast := store.BotBroadcastFromContext(ctx); broadcast && req.RecipientBlocked {
+		return domain.SendPrivateTextResult{}, domain.ErrBotBroadcastRecipientBlocked
 	}
 	fingerprint, err := store.PrivateSendFingerprint(req)
 	if err != nil {
@@ -58,16 +61,31 @@ func (s *MessageStore) SendPrivateText(_ context.Context, req domain.SendPrivate
 		s.noForwardsMu.Lock()
 		defer s.noForwardsMu.Unlock()
 	}
+	commerce, broadcast, err := lockMemoryBroadcast(ctx)
+	if err != nil {
+		return domain.SendPrivateTextResult{}, err
+	}
+	if commerce != nil {
+		defer commerce.mu.Unlock()
+		if commerce.messages != s {
+			return domain.SendPrivateTextResult{}, domain.ErrBotBroadcastReservation
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.sendPrivateTextLocked(req, fingerprint, nil)
+	res, err := s.sendPrivateTextLocked(req, fingerprint, nil)
+	if err == nil && commerce != nil {
+		commerce.commitBroadcastLocked(broadcast, &res.SenderMessage, nil, res.Duplicate)
+	}
+	return res, err
 }
 
 // A prefix stages related state events before the message. apply is infallible
 // and only runs after all validation and receipt encoding have succeeded.
 type memoryPrivateSendPrefix struct {
-	events []domain.UpdateEvent
-	apply  func([]domain.UpdateEvent)
+	events      []domain.UpdateEvent
+	beforeApply func(sender, recipient domain.Message) error
+	apply       func([]domain.UpdateEvent)
 }
 
 // Caller holds s.mu; this helper owns the dialog/event locks through commit.
@@ -167,6 +185,11 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 	if req.RandomID != 0 {
 		senderSnapshot, err = store.EncodePrivateSendSnapshot(sender)
 		if err != nil {
+			return domain.SendPrivateTextResult{}, err
+		}
+	}
+	if prefix != nil && prefix.beforeApply != nil {
+		if err := prefix.beforeApply(sender, recipient); err != nil {
 			return domain.SendPrivateTextResult{}, err
 		}
 	}
