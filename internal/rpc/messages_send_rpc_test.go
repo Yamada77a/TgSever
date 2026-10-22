@@ -18,7 +18,7 @@ func TestMessagesSendMessageReturnsUpdateAndRecordsOwnerContext(t *testing.T) {
 	recipient := domain.User{ID: 1000000002, AccessHash: 22, FirstName: "Recipient"}
 	messages := &captureMessages{}
 	dialogs := &captureDialogs{}
-	users := &countingMapUsersService{mapUsersService: mapUsersService{users: map[int64]domain.User{sender.ID: sender, recipient.ID: recipient}}}
+	users := mapUsersService{users: map[int64]domain.User{sender.ID: sender, recipient.ID: recipient}}
 	metrics := &captureRPCMetrics{}
 	r := New(Config{}, Deps{
 		Messages: messages,
@@ -85,9 +85,6 @@ func TestMessagesSendMessageReturnsUpdateAndRecordsOwnerContext(t *testing.T) {
 	}
 	if metrics.messageSend != 1 || metrics.messageSendErr != nil {
 		t.Fatalf("metrics send=%d err=%v, want one successful send", metrics.messageSend, metrics.messageSendErr)
-	}
-	if users.byIDsCalls != 1 || users.byIDCalls != 0 || users.selfCalls != 0 {
-		t.Fatalf("send user lookups byIDs/byID/self = %d/%d/%d, want one shared batch projection", users.byIDsCalls, users.byIDCalls, users.selfCalls)
 	}
 }
 

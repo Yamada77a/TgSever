@@ -222,6 +222,11 @@ func (r *Router) sendOutgoing(ctx context.Context, userID int64, peer domain.Pee
 		r.clearDraftAfterSendWithPeerObjects(ctx, userID, peer, replyTo, users, chats)
 	}
 	if !res.Duplicate {
+		threadID := 0
+		if replyTo != nil {
+			threadID = replyTo.TopMessageID
+		}
+		r.finishMessageDraftAfterSend(ctx, userID, peer.ID, threadID)
 		// 链接预览 pending 占位：带外解析并就地替换（异步，不阻塞发送 echo）。
 		r.maybeEnqueueWebPageResolve(userID, peer, res.SenderMessage.ID, res.SenderMessage.Media)
 		r.enqueueBotAPIPrivateMessageUpdateAsync(ctx, res)
