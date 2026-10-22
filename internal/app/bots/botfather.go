@@ -83,6 +83,12 @@ Bot Settings
 /setprivacy - toggle privacy mode in groups
 /paidbroadcast @your_bot on|off - manage paid broadcasts
 
+Games
+/newgame - create a game for one of your bots
+
+Telegram Passport
+/setpassportkey - set a bot's Passport public key
+
 Telegram Login
 /setlogin - configure Telegram Login for a bot
 /logininfo - show a bot's Telegram Login configuration
@@ -135,7 +141,7 @@ func (s *Service) OnPrivateMessage(ctx context.Context, botUserID int64, msg dom
 	}
 	switch botUserID {
 	case domain.BotFatherUserID:
-		go s.respondAsBotFather(userID, msg.Body)
+		go s.respondAsBotFatherMessage(userID, msg)
 	case domain.StickersBotUserID:
 		go s.respondAsStickers(userID, msg)
 	case domain.ChatBotUserID:
@@ -157,13 +163,20 @@ func (s *Service) OnPrivateMessage(ctx context.Context, botUserID int64, msg dom
 // 按用户取条带锁串行：状态机 Get→modify→Upsert/Delete 的 RMW 因此原子、回复保序，
 // 不同用户并发不受影响。ctx 用 Background（脱离已返回的用户 RPC），限较长超时。
 func (s *Service) respondAsBotFather(userID int64, body string) {
+	s.respondAsBotFatherMessage(userID, domain.Message{Body: body})
+}
+
+func (s *Service) respondAsBotFatherMessage(userID int64, msg domain.Message) {
 	mu := s.serviceBotReplyLock(domain.BotFatherUserID, userID)
 	mu.Lock()
 	defer mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	reply := s.handleBotFather(ctx, userID, body)
+	reply, handled := s.handleGameBotFather(ctx, userID, msg)
+	if !handled {
+		reply = s.handleBotFather(ctx, userID, msg.Body)
+	}
 	s.sendServiceBotReply(ctx, domain.BotFatherUserID, userID, reply)
 }
 

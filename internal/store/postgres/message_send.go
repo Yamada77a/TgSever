@@ -293,7 +293,7 @@ func (s *MessageStore) sendPrivateTextOnce(ctx context.Context, req domain.SendP
 	if err := lockDispatchOutboxAppendFences(ctx, tx, []int64{req.SenderUserID, req.RecipientUserID}); err != nil {
 		return domain.SendPrivateTextResult{}, fmt.Errorf("lock send dispatch append fences: %w", err)
 	}
-	if hooks.before != nil || req.ReplyTo != nil {
+	if hooks.before != nil || req.ReplyTo != nil || req.Media != nil && req.Media.ServiceAction != nil && req.Media.ServiceAction.Kind == domain.MessageServiceActionPassportData {
 		// The preflight above cannot observe another first request until it commits.
 		// Recheck after the per-user transaction lock so aggregate-backed sends
 		// replay the committed message before their hook runs a second time.
@@ -325,6 +325,9 @@ func (s *MessageStore) sendPrivateTextOnce(ctx context.Context, req domain.SendP
 		if err := hooks.before(ctx, tx, &req); err != nil {
 			return domain.SendPrivateTextResult{}, err
 		}
+	}
+	if err := persistPassportAuthorizationTx(ctx, tx, req); err != nil {
+		return domain.SendPrivateTextResult{}, err
 	}
 	if plainHotPath {
 		pm, createErr := createPlainPrivateMessage(ctx, tx, req, requestFingerprint, deliverRecipient)
@@ -678,6 +681,9 @@ WHERE sender_user_id = $1
 		}
 	}
 	if err := commitBotBroadcastTx(ctx, tx, &result.SenderMessage, nil, false); err != nil {
+		return domain.SendPrivateTextResult{}, err
+	}
+	if err := persistBusinessGameMessageTx(ctx, tx, req, sender.ID); err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
 

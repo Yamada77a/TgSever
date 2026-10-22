@@ -25,6 +25,7 @@ type MessageStore struct {
 	// polls 是共享 poll 权威（投票校验与读路径 enrichment）；nil 时 poll 链路按未接入处理。
 	polls              *PollStore
 	commerce           *BotCommerceStore
+	gamesPassport      *GamesPassportStore
 	replyChannels      *ChannelStore
 	privateForumTopics map[[3]int64]domain.PrivateForumTopic
 	// savedPins 是收藏夹子会话置顶顺序（下标即 pinned_order，越小越前）。

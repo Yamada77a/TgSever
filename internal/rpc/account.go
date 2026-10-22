@@ -470,6 +470,7 @@ func (r *Router) registerAccount(d *tlprofile.Dispatcher) {
 		return r.onAccountUpdateStatus(ctx, layerRequest.
 			Offline)
 	})
+	r.registerPassport(d)
 
 }
 
@@ -489,7 +490,7 @@ func wallpaperReferenceLogFields(method string, input tg.InputWallPaperClass) []
 
 func (r *Router) onAccountGetPassword(ctx context.Context) (*tg.AccountPassword, error) {
 	if r.deps.Account == nil {
-		return tgPassword(domain.PasswordSettings{SecureRandom: []byte("telesrv-tdesktop-dev-secure-rand")}), nil
+		return nil, internalErr()
 	}
 	userID, _, _, err := r.currentOrPendingPasswordUserID(ctx)
 	if err != nil {
@@ -498,6 +499,21 @@ func (r *Router) onAccountGetPassword(ctx context.Context) (*tg.AccountPassword,
 	settings, err := r.deps.Account.GetPassword(ctx, userID)
 	if err != nil {
 		return nil, internalErr()
+	}
+	if r.deps.GamesPassport != nil {
+		settings.HasSecureValues = false
+	}
+	if r.deps.GamesPassport != nil && settings.SecureSettings != nil {
+		data, err := r.deps.GamesPassport.GetPassportData(ctx, userID)
+		if err != nil {
+			return nil, internalErr()
+		}
+		for _, el := range data.Elements {
+			if el.SecretID == settings.SecureSettings.ID {
+				settings.HasSecureValues = true
+				break
+			}
+		}
 	}
 	return tgPassword(settings), nil
 }

@@ -27,6 +27,15 @@ func tgMessageMedia(m *domain.MessageMedia) tg.MessageMediaClass {
 		return tgPaidMedia(m.PaidMedia)
 	}
 	switch m.Kind {
+	case domain.MessageMediaKindGame:
+		if m.Game == nil {
+			return &tg.MessageMediaEmpty{}
+		}
+		game := &tg.Game{ID: m.Game.ID, AccessHash: m.Game.AccessHash, ShortName: m.Game.ShortName, Title: m.Game.Title, Description: m.Game.Description, Photo: tgPhoto(m.Game.Photo)}
+		if m.Game.Animation != nil {
+			game.SetDocument(tgDocument(*m.Game.Animation))
+		}
+		return &tg.MessageMediaGame{Game: *game}
 	case domain.MessageMediaKindPhoto:
 		out := &tg.MessageMediaPhoto{Spoiler: m.Spoiler}
 		if m.Photo != nil {

@@ -750,6 +750,8 @@ func (r *Router) sendMultiMediaToMonoforum(ctx context.Context, userID int64, pe
 // 返回 nil 表示 InputMediaEmpty（调用方退化为纯文本）。
 func (r *Router) resolveInputMedia(ctx context.Context, userID int64, input tg.InputMediaClass) (*domain.MessageMedia, error) {
 	switch in := input.(type) {
+	case *tg.InputMediaGame:
+		return r.resolveInputGame(ctx, userID, in.ID)
 	case *tg.InputMediaEmpty:
 		return nil, nil
 	case *tg.InputMediaContact:

@@ -1142,6 +1142,7 @@ func run(logger *zap.Logger) error {
 
 	botStore := postgres.NewBotStore(pool)
 	botCommerceStore := postgres.NewBotCommerceStore(pool)
+	gamesPassportStore := postgres.NewGamesPassportStore(pool)
 	// userCache 与 users 服务共享同一实例：bot 元数据写入（version bump）后必须
 	// 失效缓存，否则 TTL 内 getUsers 回旧 first_name/旧 bot_info_version。
 	userCache := redisstore.NewUserCache(rdb, redisstore.DefaultUserCacheTTL)
@@ -1216,6 +1217,7 @@ func run(logger *zap.Logger) error {
 		botsapp.WithGifCatalog(filesService),
 		botsapp.WithUserStickerSets(accountService),
 		botsapp.WithPaidBroadcast(botCommerceStore),
+		botsapp.WithGamesPassportStore(gamesPassportStore),
 		botsapp.WithTelegramLogin(telegramLoginService),
 		botsapp.WithGramsrvOperatorBot(cfg.GramsrvBotChatIDs, adminService),
 		botsapp.WithDialogRateLimiter(rateLimiter, cfg.VerificationBotRateLimit, cfg.VerificationBotRateWindow),
@@ -2017,6 +2019,7 @@ func run(logger *zap.Logger) error {
 		BotCallbacks:                 botCallbackStore,
 		BotCommerce:                  botCommerceStore,
 		BotBroadcast:                 botCommerceStore,
+		GamesPassport:                gamesPassportStore,
 		PushDevices:                  pushDeviceStore,
 		Contacts:                     contactsService,
 		Dialogs:                      dialogsService,

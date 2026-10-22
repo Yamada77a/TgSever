@@ -1203,6 +1203,7 @@ type Deps struct {
 	BotCallbacks                 store.BotCallbackRegistryStore
 	BotCommerce                  store.BotCommerce
 	BotBroadcast                 store.BotBroadcastStore
+	GamesPassport                store.BotGamesPassportStore
 	// PushDevices 保存 account.registerDevice 的设备推送登记（与 APNs 是否配置无关）。
 	// 为 nil 时 registerDevice/unregisterDevice 只回 true、不保存。
 	PushDevices             store.PushDeviceStore
