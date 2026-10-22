@@ -1188,6 +1188,7 @@ type Deps struct {
 	AICompose                    AIComposeService
 	Ephemeral                    EphemeralService
 	EphemeralPush                store.EphemeralPushBroker
+	MessageDrafts                store.MessageDraftStore
 	WelcomeMessages              WelcomeMessageService
 	Moderation                   ModerationService
 	Users                        UsersService

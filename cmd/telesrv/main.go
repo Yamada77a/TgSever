@@ -856,6 +856,7 @@ func run(logger *zap.Logger) error {
 	defer bootstrapUpdateStore.Close()
 	botAPIUpdateStore := postgres.NewBotAPIUpdateStore(pool)
 	botCallbackStore := redisstore.NewBotCallbackRegistryStore(rdb)
+	messageDraftStore := redisstore.NewMessageDraftStore(rdb)
 	ephemeralStore := redisstore.NewEphemeralMessageStore(rdb)
 	ephemeralReportStore := postgres.NewEphemeralReportStore(pool)
 	welcomeMessageStore := postgres.NewWelcomeMessageStore(pool)
@@ -2001,6 +2002,7 @@ func run(logger *zap.Logger) error {
 		AICompose:                    aiComposeService,
 		Ephemeral:                    ephemeralService,
 		EphemeralPush:                ephemeralStore,
+		MessageDrafts:                messageDraftStore,
 		WelcomeMessages:              welcomeMessageService,
 		Moderation:                   moderationService,
 		Users:                        usersService,

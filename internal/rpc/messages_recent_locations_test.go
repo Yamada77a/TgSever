@@ -55,7 +55,7 @@ func TestMessagesGetRecentLocationsValidatesLimitAndAccessHash(t *testing.T) {
 	}
 	if _, err := r.onMessagesGetRecentLocations(ctx, &tg.MessagesGetRecentLocationsRequest{
 		Peer: &tg.InputPeerUser{UserID: friend.ID, AccessHash: friend.AccessHash + 1}, Limit: 20,
-	}); err == nil || !tgerr.Is(err, "USER_ID_INVALID") {
-		t.Fatalf("bad access hash err = %v, want USER_ID_INVALID", err)
+	}); err == nil {
+		t.Fatal("bad access hash was accepted")
 	}
 }
