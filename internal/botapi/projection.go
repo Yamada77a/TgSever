@@ -55,6 +55,9 @@ func parseAllowedUpdates(raw string) ([]domain.BotAPIUpdateKind, error) {
 			return nil, errors.New("ALLOWED_UPDATES_INVALID")
 		}
 		kind := domain.BotAPIUpdateKind(item)
+		if !domain.BotAPIUpdateKindKnown(kind) {
+			return nil, errors.New("ALLOWED_UPDATES_INVALID")
+		}
 		if _, ok := seen[kind]; !ok {
 			seen[kind] = struct{}{}
 			out = append(out, kind)
@@ -93,6 +96,17 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 		return nil, "", false
 	}
 	switch event.Type {
+	case domain.UpdateEventBotAPIObject:
+		if event.BotAPIObject == nil {
+			return nil, "", false
+		}
+		body, err := event.BotAPIObject.Object()
+		if err != nil {
+			return nil, "", false
+		}
+		kind := string(event.BotAPIObject.Kind)
+		return map[string]any{"update_id": updateID, kind: body}, kind, true
+
 	case domain.UpdateEventNewMessage:
 		if event.EphemeralMessage != nil {
 			message, ok := apiEphemeralMessage(*event.EphemeralMessage, event.Users, event.Channels)
@@ -101,13 +115,11 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 			}
 			return map[string]any{"update_id": updateID, "message": message}, "message", true
 		}
-		if !apiMessageProjectable(event.Message) {
+		if event.Message.Out || !apiMessageProjectable(event.Message) {
 			return nil, "", false
 		}
-		return map[string]any{
-			"update_id": updateID,
-			"message":   apiMessage(event.Message, event.Users, event.Channels),
-		}, "message", true
+		kind := apiMessageUpdateKind(event, false)
+		return map[string]any{"update_id": updateID, kind: apiMessage(event.Message, event.Users, event.Channels)}, kind, true
 	case domain.UpdateEventEditMessage:
 		if event.EphemeralMessage != nil {
 			message, ok := apiEphemeralMessage(*event.EphemeralMessage, event.Users, event.Channels)
@@ -119,10 +131,8 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 		if !apiMessageProjectable(event.Message) {
 			return nil, "", false
 		}
-		return map[string]any{
-			"update_id":      updateID,
-			"edited_message": apiMessage(event.Message, event.Users, event.Channels),
-		}, "edited_message", true
+		kind := apiMessageUpdateKind(event, true)
+		return map[string]any{"update_id": updateID, kind: apiMessage(event.Message, event.Users, event.Channels)}, kind, true
 	case domain.UpdateEventBotCallbackQuery:
 		callback := event.BotCallbackQuery
 		if callback == nil || callback.ID == 0 || callback.UserID == 0 {
@@ -195,6 +205,12 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 				"invoice_payload": query.Payload,
 			},
 		}, "pre_checkout_query", true
+	case domain.UpdateEventBotMessageReaction, domain.UpdateEventBotMessageReactionCount:
+		body, kind, ok := apiReactionUpdated(event)
+		if !ok {
+			return nil, "", false
+		}
+		return map[string]any{"update_id": updateID, kind: body}, kind, true
 	case domain.UpdateEventBotMyChatMember, domain.UpdateEventBotChatMember:
 		body, ok := apiChatMemberUpdated(event)
 		if !ok {
@@ -330,7 +346,7 @@ func decodeBotAPIInlineMessageID(raw string) (domain.BotInlineMessageID, error) 
 }
 
 func apiMessageProjectable(msg domain.Message) bool {
-	if msg.Out || msg.ID <= 0 {
+	if msg.ID <= 0 {
 		return false
 	}
 	if apiSuccessfulPayment(msg.Media) != nil {
@@ -1141,4 +1157,40 @@ func decodeBotAPIFileID(fileID string) (string, bool) {
 		return locationKey, true
 	}
 	return "", false
+}
+
+// SnapshotMessage builds the same public object used by HTTP responses, before
+// storing a durable update. Private domain and session fields are not serialized.
+func SnapshotMessage(message domain.Message, users []domain.User, channels []domain.Channel) map[string]any {
+	return apiMessage(message, users, channels)
+}
+
+func SnapshotPoll(poll domain.MessagePoll, users []domain.User) map[string]any {
+	byID := make(map[int64]domain.User, len(users))
+	for _, user := range users {
+		byID[user.ID] = user
+	}
+	return apiPoll(poll, byID)
+}
+
+func EncodeInlineMessageID(id domain.BotInlineMessageID) (string, bool) {
+	return encodeBotAPIInlineMessageID(id)
+}
+
+func SnapshotUser(user domain.User) map[string]any { return apiUser(user) }
+
+// Legacy queue rows stored only message ids, so infer their public kind from the
+// authoritative channel metadata as well as handling new immutable snapshots.
+func apiMessageUpdateKind(event domain.UpdateEvent, edited bool) string {
+	kind := "message"
+	for _, channel := range event.Channels {
+		if event.Message.Peer.Type == domain.PeerTypeChannel && channel.ID == event.Message.Peer.ID && channel.Broadcast && !channel.Megagroup {
+			kind = "channel_post"
+			break
+		}
+	}
+	if edited {
+		kind = "edited_" + kind
+	}
+	return kind
 }

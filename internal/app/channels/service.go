@@ -1206,7 +1206,7 @@ func (s *Service) RecordMessageReactionUse(ctx context.Context, userID int64, re
 
 // DeleteParticipantReaction removes one participant reaction on a channel message.
 func (s *Service) DeleteParticipantReaction(ctx context.Context, userID int64, req domain.DeleteChannelParticipantReactionRequest) (domain.ChannelMessageReactionsResult, error) {
-	if s == nil || s.channels == nil || userID == 0 || req.ChannelID == 0 || req.MessageID <= 0 || req.ParticipantUserID == 0 {
+	if s == nil || s.channels == nil || userID == 0 || req.ChannelID == 0 || req.MessageID <= 0 || !domain.ReactionActorValid(req.Participant) {
 		return domain.ChannelMessageReactionsResult{}, domain.ErrChannelInvalid
 	}
 	if req.UserID == 0 {
@@ -1224,7 +1224,7 @@ func (s *Service) DeleteParticipantReaction(ctx context.Context, userID int64, r
 
 // DeleteParticipantReactions removes a bounded page of one participant's reactions.
 func (s *Service) DeleteParticipantReactions(ctx context.Context, userID int64, req domain.DeleteChannelParticipantReactionsRequest) (domain.DeleteChannelParticipantReactionsResult, error) {
-	if s == nil || s.channels == nil || userID == 0 || req.ChannelID == 0 || req.ParticipantUserID == 0 {
+	if s == nil || s.channels == nil || userID == 0 || req.ChannelID == 0 || !domain.ReactionActorValid(req.Participant) {
 		return domain.DeleteChannelParticipantReactionsResult{}, domain.ErrChannelInvalid
 	}
 	if req.UserID == 0 {
