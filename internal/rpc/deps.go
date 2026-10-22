@@ -354,6 +354,8 @@ type BotsService interface {
 	GetBotCommands(ctx context.Context, botUserID int64) ([]domain.BotCommand, error)
 	SetBotInfo(ctx context.Context, botUserID int64, upd domain.BotInfoUpdate) (int, error)
 	GetBotInfo(ctx context.Context, botUserID int64) (name, about, description string, err error)
+	SetBotDefaultAdminRights(ctx context.Context, botUserID int64, broadcast bool, rights domain.ChannelAdminRights) (bool, error)
+	GetBotDefaultAdminRights(ctx context.Context, botUserID int64, broadcast bool) (domain.ChannelAdminRights, error)
 	SetBotMenuButton(ctx context.Context, botUserID int64, button domain.BotMenuButton) (int, error)
 	GetBotMenuButton(ctx context.Context, botUserID int64) (domain.BotMenuButton, error)
 	// SetBotMenuButtonForUser 设置单个用户的专属菜单按钮（default = 删除，回落到全局默认）。
@@ -859,6 +861,7 @@ type ChannelsService interface {
 	SetDiscussionGroup(ctx context.Context, userID, broadcastID, groupID int64) (domain.DiscussionGroupUpdateResult, error)
 	SetViewForumAsMessages(ctx context.Context, userID, channelID int64, enabled bool) (bool, error)
 	GetHistory(ctx context.Context, userID int64, filter domain.ChannelHistoryFilter) (domain.ChannelHistory, error)
+	GetPersonalChannelHistory(ctx context.Context, botUserID, ownerUserID int64, filter domain.ChannelHistoryFilter) (domain.ChannelHistory, error)
 	SearchChannelMedia(ctx context.Context, userID, channelID int64, req domain.MediaSearchRequest) (domain.ChannelHistory, error)
 	CountChannelMediaCategories(ctx context.Context, userID, channelID int64) (domain.MediaCategoryCounts, error)
 	GetStats(ctx context.Context, userID int64, req domain.ChannelStatsRequest) (domain.ChannelStats, error)
@@ -977,6 +980,9 @@ type FilesService interface {
 	CreateAvatarVideoFromUpload(ctx context.Context, file domain.UploadedFileRef, videoStartTs float64) (domain.Photo, error)
 	CreateAvatarVideoMarkupFromUpload(ctx context.Context, file domain.UploadedFileRef, videoStartTs float64, markup domain.PhotoSize) (domain.Photo, error)
 	CreateAvatarMarkup(ctx context.Context, size domain.PhotoSize) (domain.Photo, error)
+	// 专用头像字节入口，保留 s/a/c renditions，不使用消息照片尺寸规则。
+	CreateAvatarFromBytes(ctx context.Context, data []byte) (domain.Photo, error)
+	CreateAvatarVideoFromBytes(ctx context.Context, data []byte, videoStartTs float64) (domain.Photo, error)
 	CreateDocumentFromUpload(ctx context.Context, file domain.UploadedFileRef, spec domain.DocumentSpec) (domain.Document, error)
 	CreateDocumentFromBytes(ctx context.Context, data []byte, spec domain.DocumentSpec) (domain.Document, error)
 	GetPhoto(ctx context.Context, id int64) (domain.Photo, bool, error)
