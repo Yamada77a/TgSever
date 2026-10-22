@@ -150,7 +150,7 @@ func Start(ctx context.Context, addr string, bots BotsService, users UsersServic
 		}
 	}()
 	if webhooks, ok := gateway.(GatewayWebhookControl); ok {
-		go runWebhookDispatcher(ctx, webhooks, gateway, handler.webhookClient, logger.Named("webhook"))
+		go runWebhookDispatcher(ctx, webhooks, gateway, handler.webhookClient, logger.Named("webhook"), handler.admitWebhookInstance)
 	}
 	go func() {
 		<-ctx.Done()
@@ -170,6 +170,8 @@ type handler struct {
 	logger        *zap.Logger
 	polls         botAPIPollRegistry
 	webhookClient *http.Client
+	instanceID    string
+	cloud         bool
 }
 
 type botAPIPollRegistry struct {
@@ -210,6 +212,9 @@ type uploadedFile struct {
 }
 
 func (h *handler) routes() http.Handler {
+	if h.instanceID == "" {
+		h.instanceID = newBotAPIInstanceID()
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.handle)
 	return mux
@@ -229,6 +234,9 @@ func (h *handler) handle(w http.ResponseWriter, r *http.Request) {
 	botID, ok := h.authenticate(r.Context(), token)
 	if !ok {
 		writeAPIError(w, http.StatusUnauthorized, "ACCESS_TOKEN_INVALID")
+		return
+	}
+	if !h.admitBotInstance(w, r, botID) {
 		return
 	}
 	switch strings.ToLower(method) {
@@ -570,7 +578,19 @@ func (h *handler) getMe(w http.ResponseWriter, r *http.Request, botID int64) {
 		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
 		return
 	}
-	writeAPIOK(w, apiUser(u))
+	result := apiUser(u)
+	if h.bots != nil {
+		profile, found, err := h.bots.BotInfo(r.Context(), botID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+			return
+		}
+		if found {
+			result["supports_guest_queries"] = profile.GuestChat
+			result["can_manage_bots"] = profile.CanManageBots
+		}
+	}
+	writeAPIOK(w, result)
 }
 
 func (h *handler) getUpdates(w http.ResponseWriter, r *http.Request, botID int64) {
@@ -665,6 +685,9 @@ func (h *handler) getUpdates(w http.ResponseWriter, r *http.Request, botID int64
 		}
 		updates := apiUpdates(events, limit)
 		if len(updates) > 0 || timeoutSeconds == 0 || time.Now().After(deadline) {
+			if !h.admitBotInstance(w, r, botID) {
+				return
+			}
 			writeAPIOK(w, updates)
 			return
 		}
@@ -1250,6 +1273,9 @@ func (h *handler) downloadFile(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusUnauthorized, "ACCESS_TOKEN_INVALID")
 		return
 	}
+	if !h.admitBotInstance(w, r, botID) {
+		return
+	}
 	locationKey, ok := decodeBotAPIFileID(fileID)
 	if !ok {
 		writeAPIError(w, http.StatusBadRequest, "FILE_ID_INVALID")
@@ -1433,6 +1459,12 @@ func (h *handler) authenticate(ctx context.Context, token string) (int64, bool) 
 	botID, secret, ok := domain.ParseBotToken(token)
 	if !ok {
 		return 0, false
+	}
+	if validator, ok := h.bots.(interface {
+		ValidateBotToken(context.Context, int64, string) (bool, error)
+	}); ok {
+		valid, err := validator.ValidateBotToken(ctx, botID, secret)
+		return botID, err == nil && valid
 	}
 	profile, found, err := h.bots.BotInfo(ctx, botID)
 	if err != nil || !found || profile.TokenSecret != secret {

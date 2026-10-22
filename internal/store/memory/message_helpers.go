@@ -131,6 +131,13 @@ func cloneRequestedPeerMedia(media *domain.MessageMedia) *domain.MessageMedia {
 	requested := *media.ServiceAction.RequestedPeer
 	requested.Peers = append([]domain.Peer(nil), requested.Peers...)
 	requested.Details = append([]domain.MessageRequestedPeerDetails(nil), requested.Details...)
+	if requested.ManagedBot != nil {
+		bot := *requested.ManagedBot
+		bot.PhotoStripped = append([]byte(nil), bot.PhotoStripped...)
+		bot.ContactNoteEntities = append([]domain.MessageEntity(nil), bot.ContactNoteEntities...)
+		bot.RestrictionReasons = append([]domain.UserRestrictionReason(nil), bot.RestrictionReasons...)
+		requested.ManagedBot = &bot
+	}
 	for i := range requested.Details {
 		requested.Details[i].Photo = domain.ClonePhotoPtr(requested.Details[i].Photo)
 	}

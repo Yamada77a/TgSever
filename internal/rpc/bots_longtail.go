@@ -131,6 +131,9 @@ func (r *Router) onBotsCanSendMessage(ctx context.Context, bot tg.InputUserClass
 	if err != nil {
 		return false, err
 	}
+	if err := r.ensureBotAccess(ctx, botUser.ID, userID); err != nil {
+		return false, err
+	}
 	allowed, err := r.deps.Bots.CanSendMessage(ctx, userID, botUser.ID)
 	if err != nil {
 		return false, internalErr()
@@ -145,6 +148,9 @@ func (r *Router) onBotsAllowSendMessage(ctx context.Context, bot tg.InputUserCla
 	}
 	botUser, err := r.resolveBotUserForViewer(ctx, userID, bot)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.ensureBotAccess(ctx, botUser.ID, userID); err != nil {
 		return nil, err
 	}
 	if _, err := r.deps.Bots.AllowSendMessage(ctx, userID, botUser.ID, true); err != nil {
@@ -222,6 +228,9 @@ func (r *Router) onBotsInvokeWebViewCustomMethod(ctx context.Context, req *tg.Bo
 	}
 	bot, err := r.resolveBotUserForViewer(ctx, userID, req.Bot)
 	if err != nil {
+		return nil, err
+	}
+	if err := r.ensureBotAccess(ctx, bot.ID, userID); err != nil {
 		return nil, err
 	}
 	params := req.Params.Data
@@ -768,6 +777,7 @@ func domainRequestedButtonFromTG(botUserID int64, _ tg.InputUserClass, button tg
 	case *tg.InputButtonTypeRequestPeer:
 		out.ButtonID = b.ButtonID
 		out.PeerType, out.PeerFilter = domainRequestPeerFilter(b.PeerType)
+		fillRequestedManagedButton(&out, b.PeerType)
 		out.MaxQuantity = b.MaxQuantity
 		out.NameRequested = b.NameRequested
 		out.UsernameRequested = b.UsernameRequested
@@ -775,11 +785,12 @@ func domainRequestedButtonFromTG(botUserID int64, _ tg.InputUserClass, button tg
 	case *tg.ButtonTypeRequestPeer:
 		out.ButtonID = b.ButtonID
 		out.PeerType, out.PeerFilter = domainRequestPeerFilter(b.PeerType)
+		fillRequestedManagedButton(&out, b.PeerType)
 		out.MaxQuantity = b.MaxQuantity
 	default:
 		return domain.BotRequestedWebViewButton{}, buttonDataInvalidErr()
 	}
-	if out.ButtonID == 0 || out.Text == "" || out.PeerType == "" {
+	if out.Text == "" || out.PeerType == "" {
 		return domain.BotRequestedWebViewButton{}, buttonDataInvalidErr()
 	}
 	return out, nil
@@ -800,7 +811,7 @@ func requestPeerTypeName(peerType tg.RequestPeerTypeClass) string {
 
 func tgKeyboardButtonRequestPeer(button domain.BotRequestedWebViewButton) *tg.KeyboardButton {
 	return &tg.KeyboardButton{Text: button.Text, Type: &tg.ButtonTypeRequestPeer{
-		ButtonID: button.ButtonID, PeerType: tgRequestPeerTypeWithFilter(button.PeerType, button.PeerFilter), MaxQuantity: button.MaxQuantity,
+		ButtonID: button.ButtonID, PeerType: requestedButtonPeerType(button), MaxQuantity: button.MaxQuantity,
 	}}
 }
 
@@ -920,10 +931,11 @@ func (r *Router) onBotsGetAccessSettings(ctx context.Context, bot tg.InputUserCl
 	if err != nil {
 		return nil, internalErr()
 	}
-	if _, err := r.resolveBotUserForViewer(ctx, userID, bot); err != nil {
+	target, err := r.resolveBotUserForViewer(ctx, userID, bot)
+	if err != nil {
 		return nil, err
 	}
-	return &tg.BotsAccessSettings{}, nil
+	return r.botAccessSettingsNative(ctx, userID, target.ID)
 }
 
 func (r *Router) onBotsEditAccessSettings(ctx context.Context, req *tg.BotsEditAccessSettingsRequest) (bool, error) {
@@ -931,8 +943,27 @@ func (r *Router) onBotsEditAccessSettings(ctx context.Context, req *tg.BotsEditA
 	if err != nil {
 		return false, internalErr()
 	}
-	if _, err := r.resolveOwnedBotUser(ctx, userID, req.Bot); err != nil {
+	if req == nil {
+		return false, botInvalidErr()
+	}
+	target, err := r.resolveBotUserForViewer(ctx, userID, req.Bot)
+	if err != nil {
 		return false, err
 	}
-	return false, botInvalidErr()
+	s, err := r.botManagementService()
+	if err != nil {
+		return false, botInvalidErr()
+	}
+	var added []int64
+	if req.Restricted {
+		inputs, _ := req.GetAddUsers()
+		added, err = r.userIDsFromInputUsers(ctx, userID, inputs)
+		if err != nil {
+			return false, err
+		}
+	}
+	if err := s.SetBotAccessSettings(ctx, userID, target.ID, req.Restricted, added); err != nil {
+		return false, botInvalidErr()
+	}
+	return true, nil
 }

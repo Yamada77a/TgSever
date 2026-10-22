@@ -383,6 +383,7 @@ type BotsService interface {
 	SetAttachMenuState(ctx context.Context, state domain.BotAttachMenuState) (domain.BotAttachMenuState, error)
 	SaveRequestedWebViewButton(ctx context.Context, button domain.BotRequestedWebViewButton) (domain.BotRequestedWebViewButton, error)
 	GetRequestedWebViewButton(ctx context.Context, botUserID, userID int64, reqID string) (domain.BotRequestedWebViewButton, bool, error)
+	ConsumeRequestedWebViewButton(ctx context.Context, botUserID, userID int64, reqID string) (domain.BotRequestedWebViewButton, bool, error)
 	DeleteRequestedWebViewButton(ctx context.Context, botUserID, userID int64, reqID string) error
 	SetBotEmojiStatusPermission(ctx context.Context, botUserID, userID int64, allowed bool) error
 	BotEmojiStatusPermission(ctx context.Context, botUserID, userID int64) (bool, error)

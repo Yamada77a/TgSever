@@ -1027,6 +1027,12 @@ func apiPollMedia(media *domain.MessageMedia) map[string]any {
 }
 
 func apiRequestedPeer(action *domain.MessageRequestedPeerAction, _ map[int64]domain.User, _ map[int64]domain.Channel) map[string]any {
+	if action != nil && action.ManagedBot != nil {
+		if action.ManagedBot.ID <= 0 || !action.ManagedBot.Bot {
+			return nil
+		}
+		return map[string]any{"managed_bot_created": map[string]any{"bot": apiUser(*action.ManagedBot)}}
+	}
 	if action == nil || action.ButtonID == 0 || len(action.Peers) == 0 {
 		return nil
 	}
