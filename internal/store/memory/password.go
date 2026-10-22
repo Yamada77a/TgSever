@@ -27,6 +27,7 @@ type PasswordStore struct {
 	businessDeliveries             map[businessAutomationDeliveryKey]domain.BusinessAutomationDelivery
 	connectedBusinessBots          map[int64]domain.ConnectedBusinessBot
 	connectedBusinessBotPeerStates map[connectedBusinessBotPeerKey]domain.ConnectedBusinessBotPeerState
+	businessBotConnections         map[string]domain.ConnectedBusinessBot
 	nextQuickReplyID               map[int64]int
 	nextQuickReplyMessageID        map[int64]int
 }
@@ -62,6 +63,7 @@ func NewPasswordStore() *PasswordStore {
 		businessDeliveries:             make(map[businessAutomationDeliveryKey]domain.BusinessAutomationDelivery),
 		connectedBusinessBots:          make(map[int64]domain.ConnectedBusinessBot),
 		connectedBusinessBotPeerStates: make(map[connectedBusinessBotPeerKey]domain.ConnectedBusinessBotPeerState),
+		businessBotConnections:         make(map[string]domain.ConnectedBusinessBot),
 		nextQuickReplyID:               make(map[int64]int),
 		nextQuickReplyMessageID:        make(map[int64]int),
 	}

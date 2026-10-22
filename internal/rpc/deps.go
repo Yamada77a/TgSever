@@ -517,6 +517,7 @@ type AccountBusinessAutomationService interface {
 	DeleteQuickReplyShortcut(ctx context.Context, userID int64, shortcutID int) (domain.QuickReplyMutation, error)
 	DeleteQuickReplyMessages(ctx context.Context, userID int64, shortcutID int, ids []int) (domain.QuickReplyMutation, error)
 	GetConnectedBusinessBot(ctx context.Context, ownerUserID int64) (domain.ConnectedBusinessBot, bool, error)
+	GetBusinessBotConnection(ctx context.Context, connectionID string) (domain.ConnectedBusinessBot, bool, error)
 	SaveConnectedBusinessBot(ctx context.Context, ownerUserID int64, bot domain.ConnectedBusinessBot) (domain.ConnectedBusinessBot, error)
 	DeleteConnectedBusinessBot(ctx context.Context, ownerUserID, botUserID int64) (bool, error)
 	SetConnectedBusinessBotPaused(ctx context.Context, ownerUserID, peerUserID int64, paused bool) (domain.ConnectedBusinessBotPeerState, error)
