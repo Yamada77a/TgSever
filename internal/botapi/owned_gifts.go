@@ -1,10 +1,31 @@
 package botapi
 
 import (
+	"context"
+	"net/http"
 	"strconv"
 
 	"telesrv/internal/domain"
 )
+
+type OwnedGiftsGateway interface {
+	BotAPIGetUserGifts(context.Context, int64, int64, domain.SavedStarGiftFilter) (domain.BotAPIOwnedGiftPage, error)
+	BotAPIGetChatGifts(context.Context, int64, int64, domain.SavedStarGiftFilter) (domain.BotAPIOwnedGiftPage, error)
+	BotAPIConvertGiftToStars(context.Context, int64, string, string) (bool, error)
+	BotAPIUpgradeGift(context.Context, int64, string, string, bool, int64) (bool, error)
+	BotAPITransferGift(context.Context, int64, string, string, int64, int64) (bool, error)
+}
+
+func init() {
+	registerMethods(map[string]methodFunc{
+		"getUserGifts":       (*handler).getUserGifts,
+		"getChatGifts":       (*handler).getChatGifts,
+		"convertGiftToStars": (*handler).convertGiftToStars,
+		"upgradeGift":        (*handler).upgradeGift,
+		"transferGift":       (*handler).transferGift,
+	})
+	registerErrorMarkers("GIFT_INVALID", "GIFT_UPGRADE_UNAVAILABLE", "GIFT_TRANSFER_UNAVAILABLE", "STAR_COUNT_INVALID", "OFFSET_INVALID", "LIMIT_INVALID", "RECIPIENT_NOT_ACTIVE")
+}
 
 // ParseOwnedGiftFilter is shared with getBusinessAccountGifts. Filtering belongs
 // in the store before pagination, never in the JSON projection.
@@ -39,6 +60,129 @@ func ParseOwnedGiftFilter(values map[string]string) (domain.SavedStarGiftFilter,
 	return filter, true
 }
 
+func (h *handler) ownedGiftRequest(w http.ResponseWriter, r *http.Request) (OwnedGiftsGateway, map[string]string, bool) {
+	gateway, ok := h.gateway.(OwnedGiftsGateway)
+	if !ok {
+		writeAPIError(w, http.StatusNotImplemented, "METHOD_NOT_FOUND")
+		return nil, nil, false
+	}
+	values, err := requestValues(r)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "BAD_REQUEST")
+		return nil, nil, false
+	}
+	return gateway, values, true
+}
+
+func (h *handler) getUserGifts(w http.ResponseWriter, r *http.Request, botID int64) {
+	gateway, values, ok := h.ownedGiftRequest(w, r)
+	if !ok {
+		return
+	}
+	userID, err := strconv.ParseInt(values["user_id"], 10, 64)
+	if err != nil || userID <= 0 {
+		writeAPIError(w, http.StatusBadRequest, "USER_ID_INVALID")
+		return
+	}
+	filter, ok := ParseOwnedGiftFilter(values)
+	if !ok {
+		writeAPIError(w, http.StatusBadRequest, "BAD_REQUEST")
+		return
+	}
+	page, err := gateway.BotAPIGetUserGifts(r.Context(), botID, userID, filter)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+		return
+	}
+	writeAPIOK(w, APIOwnedGifts(page))
+}
+
+func (h *handler) getChatGifts(w http.ResponseWriter, r *http.Request, botID int64) {
+	gateway, values, ok := h.ownedGiftRequest(w, r)
+	if !ok {
+		return
+	}
+	chatID, err := h.chatIDParam(r.Context(), botID, values["chat_id"])
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+		return
+	}
+	filter, ok := ParseOwnedGiftFilter(values)
+	if !ok {
+		writeAPIError(w, http.StatusBadRequest, "BAD_REQUEST")
+		return
+	}
+	page, err := gateway.BotAPIGetChatGifts(r.Context(), botID, chatID, filter)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+		return
+	}
+	writeAPIOK(w, APIOwnedGifts(page))
+}
+
+func (h *handler) convertGiftToStars(w http.ResponseWriter, r *http.Request, botID int64) {
+	gateway, values, ok := h.ownedGiftRequest(w, r)
+	if !ok {
+		return
+	}
+	result, err := gateway.BotAPIConvertGiftToStars(r.Context(), botID, values["business_connection_id"], values["owned_gift_id"])
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+		return
+	}
+	writeAPIOK(w, result)
+}
+
+func (h *handler) upgradeGift(w http.ResponseWriter, r *http.Request, botID int64) {
+	gateway, values, ok := h.ownedGiftRequest(w, r)
+	if !ok {
+		return
+	}
+	keep, stars := false, int64(0)
+	var err error
+	if values["keep_original_details"] != "" {
+		keep, err = strconv.ParseBool(values["keep_original_details"])
+	}
+	if err == nil && values["star_count"] != "" {
+		stars, err = strconv.ParseInt(values["star_count"], 10, 64)
+	}
+	if err != nil || stars < 0 {
+		writeAPIError(w, http.StatusBadRequest, "STAR_COUNT_INVALID")
+		return
+	}
+	result, err := gateway.BotAPIUpgradeGift(r.Context(), botID, values["business_connection_id"], values["owned_gift_id"], keep, stars)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+		return
+	}
+	writeAPIOK(w, result)
+}
+
+func (h *handler) transferGift(w http.ResponseWriter, r *http.Request, botID int64) {
+	gateway, values, ok := h.ownedGiftRequest(w, r)
+	if !ok {
+		return
+	}
+	to, err := strconv.ParseInt(values["new_owner_chat_id"], 10, 64)
+	if err != nil || to == 0 {
+		writeAPIError(w, http.StatusBadRequest, "CHAT_ID_INVALID")
+		return
+	}
+	stars := int64(0)
+	if values["star_count"] != "" {
+		stars, err = strconv.ParseInt(values["star_count"], 10, 64)
+	}
+	if err != nil || stars < 0 {
+		writeAPIError(w, http.StatusBadRequest, "STAR_COUNT_INVALID")
+		return
+	}
+	result, err := gateway.BotAPITransferGift(r.Context(), botID, values["business_connection_id"], values["owned_gift_id"], to, stars)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, apiErrorDescription(err))
+		return
+	}
+	writeAPIOK(w, result)
+}
 func APIOwnedGifts(page domain.BotAPIOwnedGiftPage) map[string]any {
 	gifts := make([]map[string]any, 0, len(page.Gifts))
 	for _, item := range page.Gifts {
