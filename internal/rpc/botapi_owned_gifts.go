@@ -3,6 +3,8 @@ package rpc
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"telesrv/internal/domain"
 )
@@ -180,4 +182,170 @@ func (r *Router) botAPIOwnedGifts(ctx context.Context, botID int64, owner domain
 		out.Gifts = append(out.Gifts, item)
 	}
 	return out, nil
+}
+
+func (r *Router) botAPIBusinessGift(ctx context.Context, botID int64, connectionID, ownedID, right string) (int64, domain.SavedStarGift, error) {
+	owner, err := r.botAPIBusinessOwner(ctx, botID, connectionID, right)
+	if err != nil {
+		return 0, domain.SavedStarGift{}, err
+	}
+	msgID, err := strconv.ParseInt(ownedID, 10, 32)
+	if err != nil || msgID <= 0 || strconv.FormatInt(msgID, 10) != ownedID || r.deps.Gifts == nil {
+		return 0, domain.SavedStarGift{}, errors.New("GIFT_INVALID")
+	}
+	ref := domain.SavedStarGiftRef{Owner: domain.Peer{Type: domain.PeerTypeUser, ID: owner}, MsgID: int(msgID)}
+	saved, found, err := r.deps.Gifts.GetSaved(ctx, ref)
+	if err != nil {
+		return 0, domain.SavedStarGift{}, internalErr()
+	}
+	if !found || saved.Owner != ref.Owner || !saved.LifecycleStatus.Live() {
+		return 0, domain.SavedStarGift{}, errors.New("GIFT_INVALID")
+	}
+	return owner, saved, nil
+}
+
+func (r *Router) BotAPIConvertGiftToStars(ctx context.Context, botID int64, connectionID, ownedID string) (bool, error) {
+	owner, saved, err := r.botAPIBusinessGift(ctx, botID, connectionID, ownedID, "can_convert_gifts_to_stars")
+	if err != nil {
+		return false, err
+	}
+	if saved.UniqueGiftID != 0 || saved.ConvertStars <= 0 {
+		return false, errors.New("GIFT_INVALID")
+	}
+	sender, found, err := r.deps.Users.ByID(ctx, owner, saved.FromUserID)
+	if err != nil {
+		return false, internalErr()
+	}
+	if !found || sender.Bot {
+		return false, errors.New("GIFT_INVALID")
+	}
+	_, err = r.deps.Gifts.ConvertAggregate(ctx, domain.StarGiftConvertRequest{ActorUserID: owner, Ref: starGiftUpgradeSavedRef(saved), Date: int(r.clock.Now().Unix())})
+	if err != nil {
+		return false, r.botAPIOwnedGiftError(err)
+	}
+	r.invalidateStarGiftOwner(saved.Owner)
+	return true, nil
+}
+
+func (r *Router) BotAPIUpgradeGift(ctx context.Context, botID int64, connectionID, ownedID string, keep bool, stars int64) (bool, error) {
+	owner, saved, err := r.botAPIBusinessGift(ctx, botID, connectionID, ownedID, "can_transfer_and_upgrade_gifts")
+	if err != nil {
+		return false, err
+	}
+	if stars < 0 {
+		return false, errors.New("STAR_COUNT_INVALID")
+	}
+	prepaid := saved.PrepaidUpgradeStars > 0
+	if prepaid && stars != 0 {
+		return false, errors.New("STAR_COUNT_INVALID")
+	}
+	if !prepaid {
+		if _, err := r.botAPIBusinessOwner(ctx, botID, connectionID, "can_transfer_stars"); err != nil {
+			return false, err
+		}
+	}
+	preview, err := r.starGiftUpgradePreviewForSaved(ctx, saved)
+	if err != nil {
+		return false, err
+	}
+	if !prepaid && stars != preview.UpgradeStars {
+		return false, errors.New("STAR_COUNT_INVALID")
+	}
+	formID := int64(0)
+	if !prepaid {
+		formID = starGiftUpgradeFormID(owner, saved.ID, stars, keep)
+	}
+	_, err = r.deps.Gifts.Upgrade(ctx, domain.StarGiftUpgradeRequest{UserID: owner, Ref: starGiftUpgradeSavedRef(saved), KeepOriginalDetails: keep,
+		ChargeStars: stars, RequirePrepaid: prepaid, FormID: formID, CommandKey: fmt.Sprintf("botapi-upgrade:%d:%d:%t:%d", botID, saved.ID, keep, stars), Date: int(r.clock.Now().Unix())})
+	if err != nil {
+		return false, r.botAPIOwnedGiftError(err)
+	}
+	r.invalidateStarGiftOwner(saved.Owner)
+	return true, nil
+}
+
+func (r *Router) BotAPITransferGift(ctx context.Context, botID int64, connectionID, ownedID string, newOwnerChatID, stars int64) (bool, error) {
+	owner, saved, err := r.botAPIBusinessGift(ctx, botID, connectionID, ownedID, "can_transfer_and_upgrade_gifts")
+	if err != nil {
+		return false, err
+	}
+	to, ok := botAPIPeerFromChatID(newOwnerChatID)
+	if !ok || to.Type != domain.PeerTypeUser || to.ID == owner {
+		return false, errors.New("CHAT_ID_INVALID")
+	}
+	if saved.UniqueGiftID == 0 {
+		return false, errors.New("GIFT_INVALID")
+	}
+	if stars < 0 || stars != saved.TransferStars {
+		return false, errors.New("STAR_COUNT_INVALID")
+	}
+	if stars > 0 {
+		if _, err := r.botAPIBusinessOwner(ctx, botID, connectionID, "can_transfer_stars"); err != nil {
+			return false, err
+		}
+	}
+	var recipient domain.User
+	found := false
+	// Admission uses activity facts, not the viewer's last-seen projection:
+	// hiding an exact timestamp must not make an active recipient ineligible.
+	if resolver, ok := r.deps.Users.(privateSendBaseUserResolver); ok {
+		users, loadErr := resolver.BaseUsersByIDs(ctx, []int64{to.ID})
+		if loadErr != nil {
+			return false, internalErr()
+		}
+		for _, user := range users {
+			if user.ID == to.ID {
+				recipient, found = user, true
+				break
+			}
+		}
+	} else {
+		recipient, found, err = r.deps.Users.ByID(ctx, owner, to.ID)
+		if err != nil {
+			return false, internalErr()
+		}
+	}
+	if !found || recipient.Bot || recipient.Deleted || domain.IsSystemUserID(recipient.ID) {
+		return false, userIDInvalidErr()
+	}
+	if err := r.botAPIBusinessGiftAllowed(ctx, to.ID, true, false, false); err != nil {
+		return false, err
+	}
+	now := int(r.clock.Now().Unix())
+	lastActive := recipient.LastSeenAt
+	presence := r.userPresenceStatus(to.ID)
+	if presence.Kind == domain.UserStatusOnline && presence.Expires > now {
+		lastActive = now
+	} else if presence.WasOnline > lastActive {
+		lastActive = presence.WasOnline
+	}
+	if lastActive < now-86400 {
+		return false, errors.New("RECIPIENT_NOT_ACTIVE")
+	}
+	unsaved, err := r.starGiftRecipientUnsaved(ctx, owner, to)
+	if err != nil {
+		return false, err
+	}
+	_, err = r.deps.Gifts.Transfer(ctx, domain.StarGiftTransferRequest{ActorUserID: owner, Ref: starGiftUpgradeSavedRef(saved), To: to,
+		ChargeStars: stars, CommandKey: fmt.Sprintf("botapi-transfer:%d:%d:%d:%d", botID, saved.ID, saved.MsgID, to.ID), Date: now, RecipientUnsaved: unsaved})
+	if err != nil {
+		return false, r.botAPIOwnedGiftError(err)
+	}
+	r.invalidateStarGiftOwner(saved.Owner)
+	r.invalidateStarGiftOwner(to)
+	return true, nil
+}
+
+func (r *Router) botAPIOwnedGiftError(err error) error {
+	switch {
+	case errors.Is(err, domain.ErrStarsInsufficient):
+		return starsErr(err)
+	case errors.Is(err, domain.ErrStarGiftNotFound), errors.Is(err, domain.ErrStarGiftAlreadyConverted), errors.Is(err, domain.ErrStarGiftAlreadyUpgraded),
+		errors.Is(err, domain.ErrStarGiftNotConvertible), errors.Is(err, domain.ErrStarGiftOwnerInvalid), errors.Is(err, domain.ErrStarGiftCollectibleUnavailable),
+		errors.Is(err, domain.ErrStarGiftCollectibleSoldOut), errors.Is(err, domain.ErrStarGiftTransferUnavailable), errors.Is(err, domain.ErrStarGiftListed),
+		errors.Is(err, domain.ErrStarGiftIdempotencyConflict):
+		return errors.New("GIFT_INVALID")
+	default:
+		return internalErr()
+	}
 }
