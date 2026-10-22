@@ -1266,6 +1266,13 @@ func (r *Router) BotAPIGetFile(ctx context.Context, botID int64, locationKey str
 	if r == nil || r.deps.Files == nil || botID == 0 {
 		return domain.FileChunk{}, false, nil
 	}
+	if err := r.botAPICheckPaidFile(ctx, botID, locationKey); err != nil {
+		// A valid token does not make another seller's paid file addressable.
+		if errors.Is(err, domain.ErrPaidMediaLocked) {
+			return domain.FileChunk{}, false, nil
+		}
+		return domain.FileChunk{}, false, err
+	}
 	if limit <= 0 || limit > maxUploadGetFileChunkLimit {
 		limit = maxUploadGetFileChunkLimit
 	}
@@ -1307,7 +1314,6 @@ func (r *Router) botAPIMediaMetadata(ctx context.Context, botID int64, media *do
 	}
 	return media, nil
 }
-
 func (r *Router) botAPICheckPaidFile(ctx context.Context, userID int64, key string) error {
 	if r.deps.BotCommerce == nil {
 		return nil

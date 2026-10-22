@@ -23,6 +23,9 @@ func tgMessageMedia(m *domain.MessageMedia) tg.MessageMediaClass {
 	if m.IsZero() {
 		return &tg.MessageMediaEmpty{}
 	}
+	if m.Kind == domain.MessageMediaKindPaidMedia {
+		return tgPaidMedia(m.PaidMedia)
+	}
 	switch m.Kind {
 	case domain.MessageMediaKindPhoto:
 		out := &tg.MessageMediaPhoto{Spoiler: m.Spoiler}

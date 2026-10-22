@@ -84,6 +84,10 @@ func (r *Router) startChatJoinQuery(ctx context.Context, res domain.CreateChanne
 		if value.RequestNeeded {
 			exported["pending_join_request_count"] = value.RequestedCount
 		}
+		if value.SubscriptionPeriod > 0 {
+			exported["subscription_period"] = value.SubscriptionPeriod
+			exported["subscription_price"] = value.SubscriptionPrice
+		}
 		object["invite_link"] = exported
 	}
 	r.enqueueBotAPIObject(ctx, bot, domain.BotAPIUpdateChatJoinRequest, object)

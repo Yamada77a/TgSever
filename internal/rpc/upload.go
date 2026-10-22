@@ -164,6 +164,19 @@ func (r *Router) authorizedFileLocationKey(ctx context.Context, location tg.Inpu
 	loc, encrypted := location.(*tg.InputEncryptedFileLocation)
 	if !encrypted {
 		key, ok := fileLocationKey(location)
+		if ok && r.deps.BotCommerce != nil {
+			userID, _, err := r.currentUserID(ctx)
+			if err != nil {
+				return "", false, err
+			}
+			allowed, err := r.deps.BotCommerce.CanReadPaidFile(ctx, userID, key)
+			if err != nil {
+				return "", false, internalErr()
+			}
+			if !allowed {
+				return "", false, locationInvalidErr()
+			}
+		}
 		return key, ok, nil
 	}
 	if loc.ID == 0 || loc.AccessHash == 0 || r.deps.SecretChats == nil {
