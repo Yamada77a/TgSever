@@ -489,6 +489,9 @@ func purgeDeletedBotPrivateState(ctx context.Context, tx pgx.Tx, userID int64, n
 	if err := lockDispatchOutboxLanesExclusive(ctx, tx, []int64{userID}); err != nil {
 		return fmt.Errorf("lock deleted bot dispatch lane: %w", err)
 	}
+	if err := sqlcgen.New(tx).DeleteBusinessConnectionsForUser(ctx, userID); err != nil {
+		return fmt.Errorf("purge deleted account business connections: %w", err)
+	}
 	statements := []string{
 		`DELETE FROM account_privacy_rules WHERE owner_user_id = $1`,
 		`DELETE FROM account_reaction_settings WHERE user_id = $1`,
@@ -530,8 +533,6 @@ func purgeDeletedBotPrivateState(ctx context.Context, tx pgx.Tx, userID int64, n
 		`DELETE FROM ai_compose_tone_saves WHERE user_id = $1`,
 		`DELETE FROM ai_compose_tones WHERE owner_user_id = $1`,
 		`DELETE FROM business_automation_deliveries WHERE owner_user_id = $1 OR peer_user_id = $1`,
-		`DELETE FROM business_connected_bot_peer_states WHERE owner_user_id = $1 OR peer_user_id = $1`,
-		`DELETE FROM business_connected_bots WHERE owner_user_id = $1`,
 		`DELETE FROM business_chat_links WHERE owner_user_id = $1`,
 		`DELETE FROM user_business_profiles WHERE user_id = $1`,
 		`DELETE FROM attach_menu_user_states WHERE user_id = $1`,
