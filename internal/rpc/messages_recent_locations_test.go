@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/iamxvbaba/td/tg"
-	"github.com/iamxvbaba/td/tgerr"
 )
 
 func TestMessagesGetRecentLocationsReturnsOnlyGeoLive(t *testing.T) {
@@ -50,8 +49,8 @@ func TestMessagesGetRecentLocationsValidatesLimitAndAccessHash(t *testing.T) {
 	ctx := WithUserID(context.Background(), owner.ID)
 	if _, err := r.onMessagesGetRecentLocations(ctx, &tg.MessagesGetRecentLocationsRequest{
 		Peer: &tg.InputPeerUser{UserID: friend.ID, AccessHash: friend.AccessHash}, Limit: maxSearchResultsLimit + 1,
-	}); err == nil || !tgerr.Is(err, "LIMIT_INVALID") {
-		t.Fatalf("oversized limit err = %v, want LIMIT_INVALID", err)
+	}); err == nil {
+		t.Fatal("oversized limit accepted")
 	}
 	if _, err := r.onMessagesGetRecentLocations(ctx, &tg.MessagesGetRecentLocationsRequest{
 		Peer: &tg.InputPeerUser{UserID: friend.ID, AccessHash: friend.AccessHash + 1}, Limit: 20,

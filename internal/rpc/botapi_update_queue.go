@@ -817,6 +817,12 @@ func botAPIMessageProjectable(msg domain.Message) bool {
 	if msg.ID <= 0 {
 		return false
 	}
+	if msg.Action != nil {
+		switch msg.Action.Type {
+		case domain.ChannelActionTopicCreate, domain.ChannelActionTopicEdit, domain.ChannelActionSuggestedPostApproval, domain.ChannelActionSuggestedPostSuccess, domain.ChannelActionSuggestedPostRefund:
+			return true
+		}
+	}
 	if msg.Body != "" {
 		return true
 	}
@@ -830,6 +836,10 @@ func botAPIMessageMediaProjectable(media *domain.MessageMedia) bool {
 	switch media.Kind {
 	case domain.MessageMediaKindGame:
 		return media.Game != nil
+	case domain.MessageMediaKindPaidMedia:
+		return media.PaidMedia != nil
+	case domain.MessageMediaKindDice:
+		return media.Dice != nil
 	case domain.MessageMediaKindPhoto:
 		return media.Photo != nil
 	case domain.MessageMediaKindDocument:
@@ -844,6 +854,8 @@ func botAPIMessageMediaProjectable(media *domain.MessageMedia) bool {
 		return media.Poll != nil
 	case domain.MessageMediaKindGeoLive:
 		return media.GeoLive != nil
+	case domain.MessageMediaKindTodo:
+		return media.Todo != nil
 	case domain.MessageMediaKindService:
 		if media.ServiceAction == nil {
 			return false
@@ -851,6 +863,8 @@ func botAPIMessageMediaProjectable(media *domain.MessageMedia) bool {
 		switch media.ServiceAction.Kind {
 		case domain.MessageServiceActionPassportData:
 			return media.ServiceAction.PassportData != nil && media.ServiceAction.PassportData.BotUserID > 0
+		case domain.MessageServiceActionTopicCreate, domain.MessageServiceActionTopicEdit:
+			return media.ServiceAction.ForumTopic != nil
 		case domain.MessageServiceActionWebViewDataSent:
 			return media.ServiceAction.WebViewData != nil
 		case domain.MessageServiceActionRequestedPeer:

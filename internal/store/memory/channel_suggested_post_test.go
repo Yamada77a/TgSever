@@ -102,11 +102,11 @@ func TestSuggestedPostStarsApprovalRefundAndSettlement(t *testing.T) {
 	if err != nil || !duplicate.Duplicate || store.starsBalances[subscriber.ID] != 90 {
 		t.Fatalf("duplicate=%+v err=%v balance=%d", duplicate, err, store.starsBalances[subscriber.ID])
 	}
-	if _, err := store.ToggleSuggestedPostApproval(ctx, domain.ToggleSuggestedPostApprovalRequest{UserID: 1, MonoforumID: mono.ID, MessageID: suggestion.Message.ID, Reject: true, Date: 1_700_000_201}); !errors.Is(err, domain.ErrSuggestedPostAlreadyHandled) {
-		t.Fatalf("decline of approved post=%v", err)
-	}
 	if duplicate.OriginalMessage.SuggestedPost.ScheduleDate != 1_700_000_200 || duplicate.ServiceMessage.Action.SuggestedPostScheduleDate != 1_700_000_200 {
 		t.Fatalf("duplicate changed immediate approval date: %+v", duplicate)
+	}
+	if _, err := store.ToggleSuggestedPostApproval(ctx, domain.ToggleSuggestedPostApprovalRequest{UserID: 1, MonoforumID: mono.ID, MessageID: suggestion.Message.ID, Reject: true, Date: 1_700_000_202}); !errors.Is(err, domain.ErrSuggestedPostAlreadyHandled) {
+		t.Fatalf("decline of approved post=%v", err)
 	}
 	store.mu.Lock()
 	for i := range store.messages[parent.ID] {

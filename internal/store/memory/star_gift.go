@@ -472,6 +472,9 @@ func (s *StarGiftStore) ListByOwnerFiltered(_ context.Context, filter domain.Sav
 		if filter.ExcludeUnupgradable && !filter.ExcludeUpgradable && !upgradable {
 			continue
 		}
+		// 内存存储只产出 lifecycle_status=active 的行，hosted 行由 SQL 侧的
+		// host 视图单独给出，因此 exclude_hosted 在这里是空操作而非过滤
+		// “唯一化过的礼物”。
 		if filter.PeerColorAvailable {
 			gift, ok := s.catalog[g.GiftID]
 			if !ok || g.UniqueGiftID == 0 || !gift.PeerColorAvailable {

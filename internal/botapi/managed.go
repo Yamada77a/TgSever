@@ -20,7 +20,6 @@ func init() {
 		"getManagedBotAccessSettings": (*handler).getManagedBotAccessSettings,
 		"setManagedBotAccessSettings": (*handler).setManagedBotAccessSettings,
 	})
-	registerErrorMarkers("BOT_MANAGER_INVALID", "BOT_ACCESS_DENIED", "BOT_INSTANCE_CLOSED")
 }
 func (h *handler) managedRequest(w http.ResponseWriter, r *http.Request) (ManagedBotsGateway, map[string]string, int64, bool) {
 	g, ok := h.gateway.(ManagedBotsGateway)

@@ -605,9 +605,10 @@ func (s *ChannelStore) channelMessageRepliesLocked(viewerUserID, channelID int64
 		rootID = msg.Discussion.MessageID
 		stats.Comments = true
 		stats.ChannelID = msg.Discussion.ChannelID
-	} else if channel, ok := s.channels[channelID]; ok && channel.Broadcast && channel.LinkedChatID != 0 && msg.Post {
-		stats.Comments = true
-		stats.ChannelID = channel.LinkedChatID
+	} else if channel, ok := s.channels[channelID]; ok && channel.Broadcast && msg.Post {
+		// A linked channel does not imply that this particular post has a
+		// discussion root (for example when its sender identity is banned).
+		return nil
 	}
 	if rootID <= 0 {
 		return nil

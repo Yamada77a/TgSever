@@ -158,6 +158,7 @@ func (r *Router) enqueueBusinessConnection(ctx context.Context, connection domai
 	}
 	r.enqueueBotAPIObject(ctx, connection.BotUserID, domain.BotAPIUpdateKind("business_connection"), botapi.BusinessConnectionObject(connection, user))
 }
+
 func (r *Router) botAPIEnqueueBusinessMessage(ctx context.Context, botID int64, connectionID string, msg domain.Message, edited bool) {
 	if msg.ID <= 0 || msg.Deleted || r.deps.Users == nil {
 		return
@@ -499,6 +500,7 @@ func (r *Router) BotAPIDeleteBusinessMessages(ctx context.Context, botID int64, 
 	r.enqueueBotAPIObject(ctx, botID, domain.BotAPIUpdateKind("deleted_business_messages"), map[string]any{"business_connection_id": connectionID, "chat": map[string]any{"id": peer.ID, "type": "private"}, "message_ids": deleted})
 	return true, nil
 }
+
 func (r *Router) enqueueBotAPIBusinessPrivateMessage(ctx context.Context, result domain.SendPrivateTextResult) {
 	if result.Duplicate {
 		return

@@ -47,7 +47,6 @@ func NewBotCommerceStore(stars *StarsStore, bots *BotStore, messages *MessageSto
 }
 
 var _ store.BotCommerce = (*BotCommerceStore)(nil)
-var _ store.BotInvoicePayments = (*MessageStore)(nil)
 
 func (s *BotCommerceStore) CreateInvoiceLink(_ context.Context, v domain.InvoiceLink) error {
 	if !v.Valid() {

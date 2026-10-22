@@ -17,7 +17,7 @@ const paidMessageChannelCommissionPermille int64 = 850
 // 母频道管理员可以回复任意订阅者。
 func (s *ChannelStore) SendMonoforumMessage(ctx context.Context, req domain.SendMonoforumMessageRequest) (domain.SendChannelMessageResult, error) {
 	if req.MonoforumID == 0 || req.SenderUserID == 0 || req.SavedPeer.ID == 0 ||
-		req.SavedPeer.Type != domain.PeerTypeUser || strings.TrimSpace(req.Message) == "" && req.Media == nil {
+		req.SavedPeer.Type != domain.PeerTypeUser || strings.TrimSpace(req.Message) == "" && req.Media == nil && req.RichMessage.IsZero() {
 		return domain.SendChannelMessageResult{}, domain.ErrChannelInvalid
 	}
 	if req.AllowPaidStars < 0 {
@@ -75,15 +75,21 @@ func (s *ChannelStore) SendMonoforumMessage(ctx context.Context, req domain.Send
 		if req.ReplyTo.MessageID <= 0 || req.ReplyTo.Peer != (domain.Peer{Type: domain.PeerTypeChannel, ID: channel.ID}) {
 			return domain.SendChannelMessageResult{}, domain.ErrReplyMessageIDInvalid
 		}
-		found := false
-		for _, candidate := range s.messages[channel.ID] {
-			if candidate.ID == req.ReplyTo.MessageID && !candidate.Deleted && candidate.SavedPeer == req.SavedPeer {
-				found = true
-				break
-			}
-		}
-		if !found {
+		source, found := s.findMessageLocked(channel.ID, req.ReplyTo.MessageID)
+		if found && source.SavedPeer != req.SavedPeer {
 			return domain.SendChannelMessageResult{}, domain.ErrReplyMessageIDInvalid
+		}
+		if !found || source.Deleted {
+			if !req.ReplyTo.AllowMissing {
+				return domain.SendChannelMessageResult{}, domain.ErrReplyMessageIDInvalid
+			}
+			req.ReplyTo = nil
+		} else {
+			if err := domain.ValidateBotAPIReplySource(req.ReplyTo, replyChannelMessage(source)); err != nil {
+				return domain.SendChannelMessageResult{}, err
+			}
+			req.ReplyTo = domain.CloneMessageReply(req.ReplyTo)
+			req.ReplyTo.AllowMissing = false
 		}
 	}
 	var senderBalance *domain.StarsBalance
@@ -131,6 +137,8 @@ func (s *ChannelStore) SendMonoforumMessage(ctx context.Context, req domain.Send
 		Body:             req.Message,
 		Entities:         append([]domain.MessageEntity(nil), req.Entities...),
 		Media:            req.Media,
+		RichMessage:      req.RichMessage,
+		ReplyMarkup:      req.ReplyMarkup,
 		ReplyTo:          req.ReplyTo,
 		Forward:          req.Forward,
 		GroupedID:        req.GroupedID,

@@ -57,7 +57,6 @@ func (r *Router) onMessagesGetGameHighScores(ctx context.Context, req *tg.Messag
 	}
 	return tgGameHighScores(scores), nil
 }
-
 func (r *Router) onMessagesGetInlineGameHighScores(ctx context.Context, req *tg.MessagesGetInlineGameHighScoresRequest) (*tg.MessagesHighScores, error) {
 	botID, err := r.callerBotID(ctx)
 	if err != nil {
@@ -81,7 +80,6 @@ func (r *Router) onMessagesGetInlineGameHighScores(ctx context.Context, req *tg.
 	}
 	return tgGameHighScores(scores), nil
 }
-
 func (r *Router) onMessagesSetGameScore(ctx context.Context, req *tg.MessagesSetGameScoreRequest) (tg.UpdatesClass, error) {
 	botID, err := r.callerBotID(ctx)
 	if err != nil {
@@ -108,7 +106,6 @@ func (r *Router) onMessagesSetGameScore(ctx context.Context, req *tg.MessagesSet
 	}
 	return out, nil
 }
-
 func (r *Router) onMessagesSetInlineGameScore(ctx context.Context, req *tg.MessagesSetInlineGameScoreRequest) (bool, error) {
 	botID, err := r.callerBotID(ctx)
 	if err != nil {

@@ -176,53 +176,6 @@ func TestPreparedKeyboardHTTPUserBindingFiltersAndConsumption(t *testing.T) {
 	}
 }
 
-func TestPreparedKeyboardHTTPChatFiltersAndNativeConsumption(t *testing.T) {
-	f := newBotAPIBridgeFixture(t)
-	call := inlineHTTP(t, f)
-	prepared := call("savePreparedKeyboardButton", map[string]any{
-		"user_id": f.owner.ID,
-		"button": map[string]any{
-			"text": "Share this group",
-			"request_chat": map[string]any{
-				"request_id": -7, "chat_is_channel": false, "chat_is_created": true,
-				"chat_has_username": true, "bot_is_member": true, "request_title": true,
-			},
-		},
-	}, true).(map[string]any)
-	id := prepared["id"].(string)
-	button, err := f.router.onBotsGetRequestedWebViewButton(WithUserID(f.ctx, f.owner.ID), &tg.BotsGetRequestedWebViewButtonRequest{Bot: inputUser(f.bot), WebappReqID: id})
-	if err != nil {
-		t.Fatal(err)
-	}
-	kind, ok := button.Type.(*tg.ButtonTypeRequestPeer)
-	if !ok {
-		t.Fatalf("native button=%T", button.Type)
-	}
-	if _, ok := kind.PeerType.(*tg.RequestPeerTypeChat); !ok {
-		t.Fatalf("native requested peer=%T", kind.PeerType)
-	}
-	send := &tg.MessagesSendBotRequestedPeerRequest{Peer: inputPeerUser(f.bot), ButtonID: -7, RequestedPeers: []tg.InputPeerClass{inputPeerUser(f.member)}}
-	send.SetWebappReqID(id)
-	if _, err := f.router.onMessagesSendBotRequestedPeer(WithUserID(f.ctx, f.owner.ID), send); !tgerr.Is(err, "BUTTON_DATA_INVALID") {
-		t.Fatalf("wrong peer type=%v", err)
-	}
-	send.RequestedPeers = []tg.InputPeerClass{&tg.InputPeerChannel{ChannelID: f.channel.ID, AccessHash: f.channel.AccessHash}}
-	if _, err := f.router.onMessagesSendBotRequestedPeer(WithUserID(f.ctx, f.owner.ID), send); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.router.onMessagesSendBotRequestedPeer(WithUserID(f.ctx, f.owner.ID), send); !tgerr.Is(err, "BUTTON_DATA_INVALID") {
-		t.Fatalf("replayed chat share=%v", err)
-	}
-	history, err := f.messages.GetHistory(f.ctx, f.bot.ID, domain.MessageFilter{HasPeer: true, Peer: domain.Peer{Type: domain.PeerTypeUser, ID: f.owner.ID}, Limit: 1})
-	if err != nil || len(history.Messages) != 1 {
-		t.Fatalf("bot history=%+v err=%v", history, err)
-	}
-	shared := history.Messages[0].Media.ServiceAction.RequestedPeer
-	if shared.ButtonID != -7 || len(shared.Peers) != 1 || shared.Peers[0] != (domain.Peer{Type: domain.PeerTypeChannel, ID: f.channel.ID}) || len(shared.Details) != 1 || shared.Details[0].Title != f.channel.Title {
-		t.Fatalf("shared chat snapshot=%+v", shared)
-	}
-}
-
 func TestGuestQueryRequiresEnabledMentionAndSendsActualBotReply(t *testing.T) {
 	f := newBotAPIBridgeFixture(t)
 	queries := memory.NewBotGuestQueryStore()

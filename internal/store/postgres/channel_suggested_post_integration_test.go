@@ -79,7 +79,7 @@ func TestSuggestedPostLifecyclePostgres(t *testing.T) {
 	if err != nil || !replay.Duplicate || replay.OriginalEvent.Type != domain.ChannelUpdateEditMessage || replay.ServiceEvent.Type != domain.ChannelUpdateNewMessage || replay.Published == nil {
 		t.Fatalf("approval replay=%+v err=%v", replay, err)
 	}
-	if _, err := channels.ToggleSuggestedPostApproval(ctx, domain.ToggleSuggestedPostApprovalRequest{UserID: owner.ID, MonoforumID: monoID, MessageID: suggestion.Message.ID, Reject: true, Date: 1_700_000_201}); !errors.Is(err, domain.ErrSuggestedPostAlreadyHandled) {
+	if _, err := channels.ToggleSuggestedPostApproval(ctx, domain.ToggleSuggestedPostApprovalRequest{UserID: owner.ID, MonoforumID: monoID, MessageID: suggestion.Message.ID, Reject: true, Date: 1_700_000_202}); !errors.Is(err, domain.ErrSuggestedPostAlreadyHandled) {
 		t.Fatalf("decline of approved post=%v", err)
 	}
 	var state string

@@ -30,9 +30,9 @@ type webhookDispatcher struct {
 	gateway GatewayService
 	client  *http.Client
 	logger  *zap.Logger
-	admit   func(context.Context, int64) error
 	botSem  chan struct{}
 	httpSem chan struct{}
+	admit   func(context.Context, int64) error
 }
 
 func newWebhookHTTPClient() *http.Client {
@@ -166,14 +166,18 @@ func (d *webhookDispatcher) deliver(parent context.Context, candidate domain.Bot
 	}
 	results := make(chan delivery, limit)
 	for i := 0; i < limit; i++ {
+		updateID := events[i].BotAPIUpdateID
+		if updateID <= 0 {
+			updateID = int64(events[i].Pts)
+		}
 		item, _, ok := apiUpdate(events[i])
 		if !ok {
-			results <- delivery{index: i, updateID: int64(events[i].Pts), err: errors.New("update projection failed")}
+			results <- delivery{index: i, updateID: updateID, err: errors.New("update projection failed")}
 			continue
 		}
 		payload, err := json.Marshal(item)
 		if err != nil {
-			results <- delivery{index: i, updateID: int64(events[i].Pts), err: err}
+			results <- delivery{index: i, updateID: updateID, err: err}
 			continue
 		}
 		go func(index int, updateID int64, payload []byte) {
@@ -185,7 +189,7 @@ func (d *webhookDispatcher) deliver(parent context.Context, candidate domain.Bot
 				return
 			}
 			results <- delivery{index: index, updateID: updateID, err: d.post(ctx, config, payload)}
-		}(i, int64(events[i].Pts), payload)
+		}(i, updateID, payload)
 	}
 	deliveries := make([]delivery, limit)
 	for i := 0; i < limit; i++ {

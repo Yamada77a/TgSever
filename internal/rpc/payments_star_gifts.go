@@ -723,6 +723,9 @@ func (r *Router) onPaymentsSendStarsForm(ctx context.Context, req *tg.PaymentsSe
 	recipientBlocked := false
 	recipientUnsaved := false
 	if peer.Type == domain.PeerTypeUser {
+		if err := r.botAPIBusinessGiftAllowed(ctx, peer.ID, inv.IncludeUpgrade, gift.Limited, false); err != nil {
+			return nil, err
+		}
 		recipientBlocked, err = r.peerBlocksUser(ctx, userID, peer.ID)
 		if err != nil {
 			return nil, internalErr()

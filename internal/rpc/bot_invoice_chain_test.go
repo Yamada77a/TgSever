@@ -121,7 +121,6 @@ func (c *invoiceChain) inputInvoice(t *testing.T, messageID int) *tg.InputInvoic
 
 // buyerInvoiceID finds the invoice as the buyer sees it, by scanning their own
 // box. This is the id the client puts in inputInvoiceMessage.
-
 func (c *invoiceChain) buyerInvoiceID(t *testing.T) int {
 	t.Helper()
 	list, err := c.store.GetByIDs(context.Background(), c.buyerID, []int{1, 2, 3, 4, 5, 6, 7, 8})

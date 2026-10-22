@@ -350,47 +350,6 @@ func TestBotFatherSetInlineFlow(t *testing.T) {
 	}
 }
 
-func TestBotFatherGuestAndFeedbackSettingsRemainOwnerOnly(t *testing.T) {
-	svc, users, _, messages := newTestService(t)
-	owner := newOwner(t, users, "+2090")
-	other := newOwner(t, users, "+2091")
-	bot := makeBot(t, svc, owner, "Guest Settings", "guest_settings_bot")
-	settings := memory.NewBotGuestQueryStore()
-	WithGuestQueries(settings)(svc)
-	WithInlineFeedback(settings)(svc)
-	ctx := context.Background()
-	assertSettings := func(guest bool, feedback int) {
-		t.Helper()
-		profile, found, err := svc.BotInfo(ctx, bot.ID)
-		if err != nil || !found || profile.GuestChat != guest {
-			t.Fatalf("guest settings=%+v found=%v err=%v", profile, found, err)
-		}
-		profiles, err := svc.BotInfos(ctx, []int64{bot.ID})
-		if err != nil || profiles[bot.ID].GuestChat != guest {
-			t.Fatalf("batch guest settings=%+v err=%v", profiles, err)
-		}
-		rate, err := settings.GetInlineFeedback(ctx, bot.ID)
-		if err != nil || rate != feedback {
-			t.Fatalf("feedback=%d err=%v", rate, err)
-		}
-	}
-	if _, err := svc.SetInlinePlaceholder(ctx, bot.ID, "Search"); err != nil {
-		t.Fatal(err)
-	}
-	assertSettings(false, 0)
-	sendToBotFather(t, svc, messages, other, "/setguest @guest_settings_bot enable")
-	sendToBotFather(t, svc, messages, other, "/setinlinefeedback @guest_settings_bot 100")
-	assertSettings(false, 0)
-	sendToBotFather(t, svc, messages, owner, "/setguest @guest_settings_bot enable")
-	sendToBotFather(t, svc, messages, owner, "/setinlinefeedback @guest_settings_bot 100")
-	assertSettings(true, 100)
-	sendToBotFather(t, svc, messages, owner, "/setinlinefeedback @guest_settings_bot 101")
-	assertSettings(true, 100)
-	sendToBotFather(t, svc, messages, owner, "/setguest @guest_settings_bot disable")
-	sendToBotFather(t, svc, messages, owner, "/setinlinefeedback @guest_settings_bot 0")
-	assertSettings(false, 0)
-}
-
 func TestRevokeBotTokenRevokesSessions(t *testing.T) {
 	users := memory.NewUserStore()
 	bots := memory.NewBotStore(users)

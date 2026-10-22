@@ -340,6 +340,9 @@ func collectMessagePeerRefs(msg domain.Message, currentChannelID int64, userIDs,
 	addDomainPeerRef(msg.From, currentChannelID, userIDs, channelIDs)
 	addDomainPeerRef(msg.Peer, currentChannelID, userIDs, channelIDs)
 	addDomainPeerRef(msg.GuestChatViaFrom, currentChannelID, userIDs, channelIDs)
+	if msg.BusinessBotID != 0 {
+		userIDs[msg.BusinessBotID] = struct{}{}
+	}
 	if msg.Forward != nil {
 		addDomainPeerRef(msg.Forward.From, currentChannelID, userIDs, channelIDs)
 		addDomainPeerRef(msg.Forward.SavedFrom, currentChannelID, userIDs, channelIDs)

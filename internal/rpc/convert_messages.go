@@ -106,6 +106,9 @@ func tgMessage(m domain.Message) tg.MessageClass {
 			msg.SetGuestchatViaFrom(caller)
 		}
 	}
+	if m.BusinessBotID != 0 {
+		msg.SetViaBusinessBotID(m.BusinessBotID)
+	}
 	if m.GroupedID != 0 {
 		msg.SetGroupedID(m.GroupedID)
 	}
@@ -142,11 +145,6 @@ func tgMessageServiceAction(msg domain.Message) tg.MessageActionClass {
 		return nil
 	}
 	switch m.ServiceAction.Kind {
-	case domain.MessageServiceActionTopicCreate, domain.MessageServiceActionTopicEdit:
-		if m.ServiceAction.ForumTopic == nil {
-			return &tg.MessageActionEmpty{}
-		}
-		return tgChannelMessageAction(*m.ServiceAction.ForumTopic)
 	case domain.MessageServiceActionPassportData:
 		a := m.ServiceAction.PassportData
 		if a == nil {
@@ -168,6 +166,11 @@ func tgMessageServiceAction(msg domain.Message) tg.MessageActionClass {
 			values = append(values, value)
 		}
 		return &tg.MessageActionSecureValuesSentMe{Values: values, Credentials: tg.SecureCredentialsEncrypted{Data: a.CredentialsData, Hash: a.CredentialsHash, Secret: a.CredentialsSecret}}
+	case domain.MessageServiceActionTopicCreate, domain.MessageServiceActionTopicEdit:
+		if m.ServiceAction.ForumTopic == nil {
+			return &tg.MessageActionEmpty{}
+		}
+		return tgChannelMessageAction(*m.ServiceAction.ForumTopic)
 	case domain.MessageServiceActionHistoryClear:
 		return &tg.MessageActionHistoryClear{}
 	case domain.MessageServiceActionSuggestProfilePhoto:
@@ -635,11 +638,11 @@ func tgMessageReactions(viewerUserID int64, in *domain.ChannelMessageReactions) 
 
 func tgMessagePeerReaction(viewerUserID int64, in domain.ChannelMessagePeerReaction) *tg.MessagePeerReaction {
 	reaction := tgMessageReaction(in.Reaction)
-	if reaction == nil || in.UserID == 0 {
+	if reaction == nil || !domain.ReactionActorValid(in.Actor()) {
 		return nil
 	}
 	out := &tg.MessagePeerReaction{
-		PeerID:   &tg.PeerUser{UserID: in.UserID},
+		PeerID:   tgPeer(in.Actor()),
 		Date:     in.Date,
 		Reaction: reaction,
 	}

@@ -1481,6 +1481,9 @@ func (s *Service) SendMessage(ctx context.Context, userID int64, req domain.Send
 	if err := domain.ValidateReplyMarkup(req.ReplyMarkup); err != nil {
 		return domain.SendChannelMessageResult{}, err
 	}
+	if err := domain.ValidateReplyMarkupMedia(req.ReplyMarkup, req.Media); err != nil {
+		return domain.SendChannelMessageResult{}, err
+	}
 	if req.RandomID != 0 && !req.IdempotencyPreflighted {
 		fingerprint, err := store.ChannelSendFingerprint(req)
 		if err != nil {
