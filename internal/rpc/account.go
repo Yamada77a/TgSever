@@ -184,14 +184,7 @@ func (r *Router) registerAccount(d *tlprofile.Dispatcher) {
 		return r.onAccountUpdateConnectedBot(ctx, layerRequest)
 	})
 	registerRPC[*tg.AccountGetBotBusinessConnectionRequest](d, tlprofile.SemanticMethodAccountGetBotBusinessConnection, func(ctx context.Context, layerRequest *tg.AccountGetBotBusinessConnectionRequest) (any, error) {
-		connectionID := layerRequest.
-			ConnectionID
-		_ = connectionID
-
-		if _, _, err := r.currentUserID(ctx); err != nil {
-			return nil, internalErr()
-		}
-		return nil, tgerr400("BOT_BUSINESS_MISSING")
+		return r.onAccountGetBotBusinessConnection(ctx, layerRequest.ConnectionID)
 	})
 	registerRPC[*tg.AccountToggleConnectedBotPausedRequest](d, tlprofile.SemanticMethodAccountToggleConnectedBotPaused, func(ctx context.Context, layerRequest *tg.AccountToggleConnectedBotPausedRequest) (any, error) {
 		return r.onAccountToggleConnectedBotPaused(ctx, layerRequest)

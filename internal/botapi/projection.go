@@ -403,6 +403,14 @@ func apiMessage(msg domain.Message, users []domain.User, channelLists ...[]domai
 		"date":       msg.Date,
 		"chat":       apiChat(msg.Peer, userByID),
 	}
+	if msg.BusinessConnectionID != "" {
+		out["business_connection_id"] = msg.BusinessConnectionID
+	}
+	if msg.BusinessBotID > 0 {
+		if bot, found := userByID[msg.BusinessBotID]; found {
+			out["sender_business_bot"] = apiUser(bot)
+		}
+	}
 	if msg.Peer.Type == domain.PeerTypeChannel {
 		if channel, ok := channelByID[msg.Peer.ID]; ok {
 			describeChannelChat(out["chat"].(map[string]any), channel)
