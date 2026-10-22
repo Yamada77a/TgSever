@@ -427,19 +427,28 @@ func (s *StarGiftStore) ListByOwnerFiltered(_ context.Context, filter domain.Sav
 	defer s.mu.Unlock()
 	matched := make([]domain.SavedStarGift, 0)
 	for _, g := range s.gifts {
-		if g.Owner != owner || !g.LifecycleStatus.Live() {
+		unique := s.uniqueByID[g.UniqueGiftID]
+		hosted := g.LifecycleStatus == domain.StarGiftLifecycleExported && unique.OwnerAddress != "" && !unique.Burned && unique.Host == owner
+		if (g.Owner != owner || !g.LifecycleStatus.Live()) && !hosted {
 			continue
+		}
+		if hosted {
+			if filter.ExcludeHosted {
+				continue
+			}
+			g.Owner, g.MsgID, g.SavedID, g.Unsaved = owner, 0, 0, false
+			g.TransferStars, g.CanTransferAt, g.CanExportAt, g.CanResellAt = 0, 0, 0, 0
 		}
 		if filter.ExcludeUnsaved && g.Unsaved {
 			continue
 		}
-		if filter.ExcludeSaved && !g.Unsaved {
+		if filter.ExcludeSaved && !g.Unsaved && !hosted {
 			continue
 		}
 		if filter.ExcludeUnique && g.UniqueGiftID != 0 {
 			continue
 		}
-		if filter.ExcludeUnlimited && g.UniqueGiftID == 0 {
+		if filter.ExcludeUnlimited && g.UniqueGiftID == 0 && (!filter.BotAPI || !s.revisions[g.RevisionID].Limited) {
 			continue
 		}
 		upgradable := false
@@ -448,15 +457,21 @@ func (s *StarGiftStore) ListByOwnerFiltered(_ context.Context, filter domain.Sav
 				upgradable = gift.UpgradeStars > 0 && gift.UpgradeIssued < gift.UpgradeTotal
 			}
 		}
+		if filter.BotAPI {
+			limited := g.UniqueGiftID == 0 && s.revisions[g.RevisionID].Limited
+			if limited && ((filter.ExcludeLimitedUpgradable && upgradable) || (filter.ExcludeLimitedNonUpgradable && !upgradable)) {
+				continue
+			}
+			if filter.ExcludeFromBlockchain && g.UniqueGiftID != 0 && s.uniqueByID[g.UniqueGiftID].OwnerAddress != "" {
+				continue
+			}
+		}
 		if filter.ExcludeUpgradable && !filter.ExcludeUnupgradable && upgradable {
 			continue
 		}
 		if filter.ExcludeUnupgradable && !filter.ExcludeUpgradable && !upgradable {
 			continue
 		}
-		// 内存存储只产出 lifecycle_status=active 的行，hosted 行由 SQL 侧的
-		// host 视图单独给出，因此 exclude_hosted 在这里是空操作而非过滤
-		// “唯一化过的礼物”。
 		if filter.PeerColorAvailable {
 			gift, ok := s.catalog[g.GiftID]
 			if !ok || g.UniqueGiftID == 0 || !gift.PeerColorAvailable {
@@ -500,7 +515,7 @@ func (s *StarGiftStore) ListByOwnerFiltered(_ context.Context, filter domain.Sav
 			}
 			return matched[i].ID > matched[j].ID
 		}
-		if profileOrder {
+		if profileOrder && !filter.BotAPI {
 			iPinned := matched[i].PinnedOrder > 0
 			jPinned := matched[j].PinnedOrder > 0
 			if iPinned != jPinned {
@@ -527,12 +542,12 @@ func (s *StarGiftStore) ListByOwnerFiltered(_ context.Context, filter domain.Sav
 			}
 		} else if hasCursor {
 			if profileOrder {
-				if cursor.PinnedOrder > 0 {
+				if !filter.BotAPI && cursor.PinnedOrder > 0 {
 					if g.PinnedOrder > 0 && (g.PinnedOrder < cursor.PinnedOrder ||
 						g.PinnedOrder == cursor.PinnedOrder && atOrBeforeProfileCursor(cursor, g)) {
 						continue
 					}
-				} else if g.PinnedOrder > 0 || atOrBeforeProfileCursor(cursor, g) {
+				} else if (!filter.BotAPI && g.PinnedOrder > 0) || atOrBeforeProfileCursor(cursor, g) {
 					continue
 				}
 			} else if g.ID >= cursor.ID {
@@ -551,7 +566,7 @@ func (s *StarGiftStore) ListByOwnerFiltered(_ context.Context, filter domain.Sav
 			page.NextOffset = domain.EncodeSavedStarGiftPriceCursor(priceOf(last), last.ID)
 		} else {
 			pinnedOrder := 0
-			if profileOrder {
+			if profileOrder && !filter.BotAPI {
 				pinnedOrder = last.PinnedOrder
 			}
 			page.NextOffset = domain.EncodeSavedStarGiftListCursor(pinnedOrder, last.Date, last.ID)

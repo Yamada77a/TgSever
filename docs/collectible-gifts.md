@@ -45,9 +45,26 @@ the host peer while the gift is exported on-chain (`lifecycle_status='exported'`
 non-empty `owner_address`, non-burned, `host_peer_*` equal to the requested
 peer). `exclude_hosted` removes the second case.
 
-The memory store only ever produces `active` rows, so `exclude_hosted` is an
-explicit no-op there: no hosted row can exist to exclude. It is not a filter
-for "gifts that were upgraded to unique" — `exclude_unique` is.
+The memory store applies the same exported/hosted ownership and
+`exclude_hosted` rules as PostgreSQL. This is not a filter for "gifts that
+were upgraded to unique" — `exclude_unique` is.
+
+### Bot API inventory query library
+
+`botapi.ParseOwnedGiftFilter` and `botapi.APIOwnedGifts` share inventory
+filtering and projection with authorized business-account consumers. These
+helpers do not register gift HTTP methods. Both stores apply Bot API category
+and blockchain exclusions before the total count and keyset pagination;
+ordinary order is send date descending, then row ID descending, ignoring
+profile pins. `sort_by_price` uses the same price cursor as `sort_by_value`.
+
+Received gift appearance and category come from the immutable catalog revision;
+upgrade availability remains live. Public queries exclude unsaved user gifts,
+remove anonymous senders and their message text/entities, and omit
+`owned_gift_id`. Unique-gift JSON never exposes original sender details or
+owner wallet addresses. Business inventory additionally checks the connected
+bot's `ViewGifts` right before including private sender details and owner-local
+gift IDs.
 
 ## `payments.getUniqueStarGiftValueInfo`
 
