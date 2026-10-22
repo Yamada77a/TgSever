@@ -152,7 +152,14 @@ func apiUpdate(event domain.UpdateEvent) (map[string]any, string, bool) {
 			"id":            strconv.FormatInt(callback.ID, 10),
 			"from":          apiUser(from),
 			"chat_instance": strconv.FormatInt(callback.ChatInstance, 10),
-			"data":          string(callback.Data),
+		}
+		if callback.GameShortName != "" {
+			if len(callback.Data) != 0 {
+				return nil, "", false
+			}
+			query["game_short_name"] = callback.GameShortName
+		} else {
+			query["data"] = string(callback.Data)
 		}
 		if callback.InlineMessage != nil {
 			inlineMessageID, ok := encodeBotAPIInlineMessageID(*callback.InlineMessage)
@@ -357,6 +364,14 @@ func decodeBotAPIInlineMessageID(raw string) (domain.BotInlineMessageID, error) 
 func apiMessageProjectable(msg domain.Message) bool {
 	if msg.ID <= 0 {
 		return false
+	}
+	if msg.Media != nil {
+		if msg.Media.Kind == domain.MessageMediaKindGame && msg.Media.Game != nil {
+			return true
+		}
+		if action := msg.Media.ServiceAction; action != nil && action.Kind == domain.MessageServiceActionPassportData && action.PassportData != nil {
+			return msg.OwnerUserID == action.PassportData.BotUserID
+		}
 	}
 	if msg.Action != nil {
 		switch msg.Action.Type {
@@ -676,6 +691,8 @@ func apiReplyMarkup(markup *domain.MessageReplyMarkup) map[string]any {
 				item["login_url"] = login
 			case domain.MarkupButtonCallback:
 				item["callback_data"] = string(button.Data)
+			case domain.MarkupButtonGame:
+				item["callback_game"] = map[string]any{}
 			case domain.MarkupButtonWebView:
 				item["web_app"] = map[string]any{"url": button.URL}
 			case domain.MarkupButtonSwitchInline:

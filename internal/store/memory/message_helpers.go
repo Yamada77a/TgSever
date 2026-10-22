@@ -114,10 +114,15 @@ func cloneRequestedPeerMedia(media *domain.MessageMedia) *domain.MessageMedia {
 	clone.Document = domain.CloneDocumentPtr(media.Document)
 	clone.LivePhotoVideo = domain.CloneDocumentPtr(media.LivePhotoVideo)
 	clone.VideoCover = domain.ClonePhotoPtr(media.VideoCover)
+	if media.Game != nil {
+		game := domain.CloneBotGame(*media.Game)
+		clone.Game = &game
+	}
 	if media.ServiceAction == nil {
 		return &clone
 	}
 	action := *media.ServiceAction
+	action.PassportData = domain.ClonePassportAuthorization(media.ServiceAction.PassportData)
 	if media.ServiceAction.NoForwards != nil {
 		noForwards := *media.ServiceAction.NoForwards
 		action.NoForwards = &noForwards

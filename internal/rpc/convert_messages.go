@@ -142,6 +142,27 @@ func tgMessageServiceAction(msg domain.Message) tg.MessageActionClass {
 			return &tg.MessageActionEmpty{}
 		}
 		return tgChannelMessageAction(*m.ServiceAction.ForumTopic)
+	case domain.MessageServiceActionPassportData:
+		a := m.ServiceAction.PassportData
+		if a == nil {
+			return nil
+		}
+		if msg.OwnerUserID != a.BotUserID {
+			types := make([]tg.SecureValueTypeClass, 0, len(a.Elements))
+			for _, el := range a.Elements {
+				types = append(types, passportTypeTG(el.Type))
+			}
+			return &tg.MessageActionSecureValuesSent{Types: types}
+		}
+		values := make([]tg.SecureValue, 0, len(a.Elements))
+		for _, el := range a.Elements {
+			value, err := tgPassportValue(el)
+			if err != nil {
+				return nil
+			}
+			values = append(values, value)
+		}
+		return &tg.MessageActionSecureValuesSentMe{Values: values, Credentials: tg.SecureCredentialsEncrypted{Data: a.CredentialsData, Hash: a.CredentialsHash, Secret: a.CredentialsSecret}}
 	case domain.MessageServiceActionHistoryClear:
 		return &tg.MessageActionHistoryClear{}
 	case domain.MessageServiceActionSuggestProfilePhoto:

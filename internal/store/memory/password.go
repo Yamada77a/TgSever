@@ -114,6 +114,12 @@ func normalizeLoginEmail(email string) string {
 
 func clonePasswordSettings(in domain.PasswordSettings) domain.PasswordSettings {
 	out := in
+	if in.SecureSettings != nil {
+		secret := *in.SecureSettings
+		secret.Salt = append([]byte(nil), secret.Salt...)
+		secret.Secret = append([]byte(nil), secret.Secret...)
+		out.SecureSettings = &secret
+	}
 	if in.CurrentAlgo != nil {
 		algo := *in.CurrentAlgo
 		algo.Salt1 = append([]byte(nil), algo.Salt1...)

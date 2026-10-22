@@ -112,6 +112,20 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 	if err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
+	commitPassport, releasePassport, err := s.preparePassportAuthorization(req)
+	if err != nil {
+		return domain.SendPrivateTextResult{}, err
+	}
+	if releasePassport != nil {
+		defer releasePassport()
+	}
+	commitGame, releaseGame, err := s.prepareBusinessGameMessage(req)
+	if err != nil {
+		return domain.SendPrivateTextResult{}, err
+	}
+	if releaseGame != nil {
+		defer releaseGame()
+	}
 	events := s.updateEvents
 	if events == nil {
 		return domain.SendPrivateTextResult{}, store.ErrDeliveryOutboxRequired
@@ -255,6 +269,12 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 			recipientExcludeAuthKeyID, recipientExcludeSessionID = req.OriginAuthKeyID, req.OriginSessionID
 		}
 		appendMemorySendEventLocked(events, req.RecipientUserID, newMessageEvent(recipient), recipientExcludeAuthKeyID, recipientExcludeSessionID)
+	}
+	if commitPassport != nil {
+		commitPassport()
+	}
+	if commitGame != nil {
+		commitGame()
 	}
 	return domain.SendPrivateTextResult{
 		SenderMessage:    cloneMessage(sender),

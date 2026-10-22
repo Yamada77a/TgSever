@@ -828,6 +828,8 @@ func botAPIMessageMediaProjectable(media *domain.MessageMedia) bool {
 		return false
 	}
 	switch media.Kind {
+	case domain.MessageMediaKindGame:
+		return media.Game != nil
 	case domain.MessageMediaKindPhoto:
 		return media.Photo != nil
 	case domain.MessageMediaKindDocument:
@@ -847,6 +849,8 @@ func botAPIMessageMediaProjectable(media *domain.MessageMedia) bool {
 			return false
 		}
 		switch media.ServiceAction.Kind {
+		case domain.MessageServiceActionPassportData:
+			return media.ServiceAction.PassportData != nil && media.ServiceAction.PassportData.BotUserID > 0
 		case domain.MessageServiceActionWebViewDataSent:
 			return media.ServiceAction.WebViewData != nil
 		case domain.MessageServiceActionRequestedPeer:
