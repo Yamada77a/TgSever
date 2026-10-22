@@ -114,6 +114,13 @@ After startup, confirm:
 - Postgres and Redis connections are healthy;
 - patched clients use the matching DC address, port, and server RSA key.
 
+The `20261028*` / `20261029*` storage migrations must deploy with their matching
+query/generated-code snapshot and PostgreSQL adapters. In particular,
+`20261029130001_message_reply_details` converts existing external replies to a
+strict versioned envelope; older server binaries cannot read those replies.
+Do not run old and new binaries together across this migration. The added
+storage contracts do not by themselves enable new Bot API methods.
+
 For the complete configuration reference, see
 [`docs/configuration.en.md`](configuration.en.md).
 

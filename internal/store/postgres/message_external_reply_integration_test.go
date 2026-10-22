@@ -158,7 +158,7 @@ func TestPrivateExternalReplyAllReadPathsAndReplay(t *testing.T) {
 	}
 	// Corruption must fail all reconstruction boundaries, never silently erase
 	// the reply. The isolated test repairs its deliberately corrupted row.
-	encoded, err := domain.EncodeMessageReplyExternal(want)
+	encoded, err := domain.EncodeMessageReplyDetails(&domain.MessageReply{External: want})
 	if err != nil {
 		t.Fatal(err)
 	}
