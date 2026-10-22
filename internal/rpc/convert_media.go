@@ -492,11 +492,15 @@ func tgDocumentAttributes(mimeType string, attrs []domain.DocumentAttribute) []t
 			}
 			out = append(out, &tg.DocumentAttributeAnimated{})
 		case domain.DocAttrSticker:
-			out = append(out, &tg.DocumentAttributeSticker{
+			sticker := &tg.DocumentAttributeSticker{
 				Mask:       a.Mask,
 				Alt:        a.Alt,
 				Stickerset: tgInputStickerSetFromIDs(a.StickerSetID, a.StickerSetAccessHash),
-			})
+			}
+			if coords, ok := tgStickerMaskCoords(a.MaskPosition); ok {
+				sticker.SetMaskCoords(coords)
+			}
+			out = append(out, sticker)
 		case domain.DocAttrVideo:
 			video := &tg.DocumentAttributeVideo{
 				RoundMessage:      a.RoundMessage,
