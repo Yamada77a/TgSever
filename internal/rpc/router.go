@@ -368,6 +368,9 @@ func New(cfg Config, deps Deps, log *zap.Logger, clk clock.Clock) *Router {
 	registerRPC[*tg.MessagesRequestChatJoinWebViewRequest](d, tlprofile.SemanticMethodMessagesRequestChatJoinWebView, func(ctx context.Context, req *tg.MessagesRequestChatJoinWebViewRequest) (any, error) {
 		return r.onMessagesRequestChatJoinWebView(ctx, req)
 	})
+	registerRPC[*tg.MessagesSetBotGuestChatResultRequest](d, tlprofile.SemanticMethodMessagesSetBotGuestChatResult, func(ctx context.Context, req *tg.MessagesSetBotGuestChatResultRequest) (any, error) {
+		return r.onMessagesSetBotGuestChatResult(ctx, req)
+	})
 	r.registerFragment(d)
 	r.registerEphemeral(d)
 	r.registerWallet(d)

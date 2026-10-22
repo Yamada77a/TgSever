@@ -171,6 +171,7 @@ func messageFromForwardRow(row sqlcgen.GetMessageBoxesForForwardRow) (domain.Mes
 		MediaUnread:          row.MediaUnread,
 		ReactionUnread:       row.ReactionUnread,
 		ViaBotID:             row.ViaBotID,
+		GuestChatViaFrom:     domain.GuestChatPeer(row.GuestchatViaFrom),
 		BusinessConnectionID: row.BusinessConnectionID,
 		BusinessBotID:        row.BusinessBotID,
 		GroupedID:            row.GroupedID,

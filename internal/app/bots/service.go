@@ -124,17 +124,16 @@ const replyLockStripes = 256
 
 // Service 提供 bot 账号业务。
 type Service struct {
-	users         store.UserStore
-	bots          store.BotStore
-	messages      store.MessageStore
-	blocker       blockChecker
-	channels      publicChannelUsernameResolver
-	stickers      stickerSetCreator
-	installer     userStickerSetInstaller
-	aiChat        aiChatGenerator
-	premium       premiumStorefront
-	paidBroadcast store.BotBroadcastStore
-	gifCatalog    interface {
+	users      store.UserStore
+	bots       store.BotStore
+	messages   store.MessageStore
+	blocker    blockChecker
+	channels   publicChannelUsernameResolver
+	stickers   stickerSetCreator
+	installer  userStickerSetInstaller
+	aiChat     aiChatGenerator
+	premium    premiumStorefront
+	gifCatalog interface {
 		ListGifCatalog(context.Context, bool) ([]domain.GifCatalogEntry, error)
 		GetDocuments(context.Context, []int64) ([]domain.Document, error)
 	}
@@ -156,6 +155,9 @@ type Service struct {
 	gramsrvAdmin          gramsrvFreezeAdmin
 	gramsrvAdminChatIDs   map[int64]struct{}
 	gamesPassport         store.BotGamesPassportStore
+	guestQueries          store.BotGuestQueryStore
+	paidBroadcast         store.BotBroadcastStore
+	inlineFeedback        store.BotInlineFeedbackStore
 	// dialogLimiter bounds how often one applicant can drive a service-bot dialog.
 	// The verification service already rate-limits application creation; this is the
 	// separate bound on dialog traffic itself, so a script cannot spin the state
@@ -510,7 +512,17 @@ func (s *Service) loadBotProfiles(ctx context.Context, botUserIDs []int64) (map[
 
 // BotInfo 返回 bot 的元数据（userFull.bot_info hydrate 用）。
 func (s *Service) BotInfo(ctx context.Context, botUserID int64) (domain.BotProfile, bool, error) {
-	return s.botProfile(ctx, botUserID)
+	profile, found, err := s.botProfile(ctx, botUserID)
+	if err != nil || !found {
+		return profile, found, err
+	}
+	if s.guestQueries != nil {
+		profile.GuestChat, err = s.guestQueries.GuestBotEnabled(ctx, botUserID)
+		if err != nil {
+			return domain.BotProfile{}, false, err
+		}
+	}
+	return profile, true, nil
 }
 
 type botBatchStore interface {
@@ -519,7 +531,20 @@ type botBatchStore interface {
 
 // BotInfos 批量返回 bot 元数据，供频道 full info / participants 这类高频富化路径避免逐 bot 点查。
 func (s *Service) BotInfos(ctx context.Context, botUserIDs []int64) (map[int64]domain.BotProfile, error) {
-	return s.botProfiles(ctx, botUserIDs)
+	profiles, err := s.botProfiles(ctx, botUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	if s.guestQueries != nil {
+		for id, profile := range profiles {
+			profile.GuestChat, err = s.guestQueries.GuestBotEnabled(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			profiles[id] = profile
+		}
+	}
+	return profiles, nil
 }
 
 func uniqueBotUserIDs(ids []int64) []int64 {

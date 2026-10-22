@@ -99,12 +99,19 @@ func cloneMessage(msg domain.Message) domain.Message {
 	msg.Reactions = cloneChannelMessageReactionsPtr(msg.Reactions)
 	msg.ReplyMarkup = cloneReplyMarkup(msg.ReplyMarkup)
 	msg.RichMessage = domain.CloneRichMessage(msg.RichMessage)
+	if msg.SuggestedPost != nil {
+		suggested := *msg.SuggestedPost
+		if suggested.Price != nil {
+			price := *suggested.Price
+			suggested.Price = &price
+		}
+		msg.SuggestedPost = &suggested
+	}
+	msg.Action = cloneChannelMessageAction(msg.Action)
 	return msg
 }
 
-// cloneRequestedPeerMedia isolates the immutable disclosure snapshot carried by
-// messageActionRequestedPeer. Other media payloads retain their established
-// copy behavior; this helper only deep-copies the newly mutable peer/photo slices.
+// cloneRequestedPeerMedia isolates mutable disclosure and Bot API media snapshots.
 func cloneRequestedPeerMedia(media *domain.MessageMedia) *domain.MessageMedia {
 	if media == nil {
 		return nil
@@ -114,6 +121,16 @@ func cloneRequestedPeerMedia(media *domain.MessageMedia) *domain.MessageMedia {
 	clone.Document = domain.CloneDocumentPtr(media.Document)
 	clone.LivePhotoVideo = domain.CloneDocumentPtr(media.LivePhotoVideo)
 	clone.VideoCover = domain.ClonePhotoPtr(media.VideoCover)
+	clone.PaidMedia = domain.ClonePaidMedia(media.PaidMedia)
+	if media.ProductInvoice != nil {
+		invoice := *media.ProductInvoice
+		if invoice.Photo != nil {
+			photo := *invoice.Photo
+			photo.Attributes = domain.CloneDocumentAttributes(invoice.Photo.Attributes)
+			invoice.Photo = &photo
+		}
+		clone.ProductInvoice = &invoice
+	}
 	if media.Game != nil {
 		game := domain.CloneBotGame(*media.Game)
 		clone.Game = &game
@@ -122,6 +139,7 @@ func cloneRequestedPeerMedia(media *domain.MessageMedia) *domain.MessageMedia {
 		return &clone
 	}
 	action := *media.ServiceAction
+	action.ForumTopic = cloneChannelMessageAction(media.ServiceAction.ForumTopic)
 	action.PassportData = domain.ClonePassportAuthorization(media.ServiceAction.PassportData)
 	if media.ServiceAction.NoForwards != nil {
 		noForwards := *media.ServiceAction.NoForwards

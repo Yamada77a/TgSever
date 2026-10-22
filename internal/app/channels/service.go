@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"telesrv/internal/app/guestauth"
 	"telesrv/internal/app/readmodel"
 	"telesrv/internal/domain"
 	"telesrv/internal/store"
@@ -1462,6 +1463,20 @@ func (s *Service) SendMessage(ctx context.Context, userID int64, req domain.Send
 	}
 	if req.UserID != userID {
 		return domain.SendChannelMessageResult{}, domain.ErrChannelInvalid
+	}
+	if req.GuestBotID != 0 {
+		return domain.SendChannelMessageResult{}, domain.ErrAuthenticatedScopeInvalid
+	}
+	botID, err := guestauth.Take(ctx, userID, domain.Peer{Type: domain.PeerTypeChannel, ID: req.ChannelID})
+	if err != nil {
+		return domain.SendChannelMessageResult{}, err
+	}
+	if botID != 0 {
+		if err := s.ensureCanSend(ctx, botID); err != nil {
+			return domain.SendChannelMessageResult{}, err
+		}
+		req.GuestBotID = botID
+		req.ViaBotID = botID
 	}
 	if err := domain.ValidateReplyMarkup(req.ReplyMarkup); err != nil {
 		return domain.SendChannelMessageResult{}, err

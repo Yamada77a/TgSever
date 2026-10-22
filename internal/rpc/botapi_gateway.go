@@ -806,32 +806,35 @@ func botAPIMessageFromChannel(botID int64, msg domain.ChannelMessage) domain.Mes
 		from = domain.Peer{Type: domain.PeerTypeUser, ID: msg.SenderUserID}
 	}
 	return domain.Message{
-		ID:          msg.ID,
-		RandomID:    msg.RandomID,
-		OwnerUserID: botID,
-		Peer:        domain.Peer{Type: domain.PeerTypeChannel, ID: msg.ChannelID},
-		From:        from,
-		Date:        msg.Date,
-		EditDate:    msg.EditDate,
-		Out:         msg.SenderUserID == botID,
-		Silent:      msg.Silent,
-		NoForwards:  msg.NoForwards,
-		Body:        msg.Body,
-		Entities:    append([]domain.MessageEntity(nil), msg.Entities...),
-		ReplyTo:     msg.ReplyTo,
-		Forward:     msg.Forward,
-		Reactions:   msg.Reactions,
-		Pts:         msg.Pts,
-		TTLPeriod:   msg.TTLPeriod,
-		ExpiresAt:   msg.ExpiresAt,
-		Media:       msg.Media,
-		MediaUnread: msg.MediaUnread,
-		ViaBotID:    msg.ViaBotID,
-		GroupedID:   msg.GroupedID,
-		ReplyMarkup: msg.ReplyMarkup,
-		RichMessage: msg.RichMessage,
-		Pinned:      msg.Pinned,
-		Action:      msg.Action,
+		ID:               msg.ID,
+		RandomID:         msg.RandomID,
+		OwnerUserID:      botID,
+		Peer:             domain.Peer{Type: domain.PeerTypeChannel, ID: msg.ChannelID},
+		From:             from,
+		Date:             msg.Date,
+		EditDate:         msg.EditDate,
+		Out:              msg.SenderUserID == botID,
+		Silent:           msg.Silent,
+		NoForwards:       msg.NoForwards,
+		Body:             msg.Body,
+		Entities:         append([]domain.MessageEntity(nil), msg.Entities...),
+		ReplyTo:          msg.ReplyTo,
+		Forward:          msg.Forward,
+		Reactions:        msg.Reactions,
+		Pts:              msg.Pts,
+		TTLPeriod:        msg.TTLPeriod,
+		ExpiresAt:        msg.ExpiresAt,
+		Media:            msg.Media,
+		MediaUnread:      msg.MediaUnread,
+		ViaBotID:         msg.ViaBotID,
+		GroupedID:        msg.GroupedID,
+		ReplyMarkup:      msg.ReplyMarkup,
+		RichMessage:      msg.RichMessage,
+		Pinned:           msg.Pinned,
+		SuggestedPost:    msg.SuggestedPost,
+		SavedPeer:        msg.SavedPeer,
+		Action:           msg.Action,
+		GuestChatViaFrom: msg.GuestChatViaFrom,
 	}
 }
 
@@ -1165,6 +1168,11 @@ func (r *Router) botAPIDeletePrivateMessage(ctx context.Context, botID int64, pe
 	}) {
 		return false, errors.New("MESSAGE_ID_INVALID")
 	}
+	for _, msg := range list.Messages {
+		if msg.ID == messageID && msg.Peer == peer && !botAPIDeletionAllowed(msg, int(r.clock.Now().Unix())) {
+			return false, tgerr400("MESSAGE_DELETE_FORBIDDEN")
+		}
+	}
 	res, err := r.deps.Messages.DeleteMessages(ctx, botID, domain.DeleteMessagesRequest{
 		OwnerUserID: botID,
 		IDs:         []int{messageID},
@@ -1189,6 +1197,13 @@ func (r *Router) botAPIDeleteChannelMessage(ctx context.Context, botID, chatID i
 	channel, _, err := r.botAPIInputChannel(ctx, botID, chatID)
 	if err != nil {
 		return false, err
+	}
+	msg, err := r.botAPIReloadMessage(ctx, botID, domain.Peer{Type: domain.PeerTypeChannel, ID: channel.ChannelID}, messageID)
+	if err != nil {
+		return false, err
+	}
+	if !botAPIDeletionAllowed(msg, int(r.clock.Now().Unix())) {
+		return false, tgerr400("MESSAGE_DELETE_FORBIDDEN")
 	}
 	res, err := r.deleteChannelMessages(WithUserID(ctx, botID), botID, channel.ChannelID, []int{messageID}, domain.BotDeletionAudit(botID))
 	if err != nil {
@@ -1286,6 +1301,20 @@ func (r *Router) BotAPIGetFile(ctx context.Context, botID int64, locationKey str
 	})
 }
 
+func (r *Router) botAPICheckPaidFile(ctx context.Context, userID int64, key string) error {
+	if r.deps.BotCommerce == nil {
+		return nil
+	}
+	allowed, err := r.deps.BotCommerce.CanReadPaidFile(ctx, userID, key)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return domain.ErrPaidMediaLocked
+	}
+	return nil
+}
+
 func (r *Router) botAPIStageUpload(ctx context.Context, botID int64, file domain.BotAPIFileInput) (domain.UploadedFileRef, error) {
 	ref := domain.UploadedFileRef{OwnerUserID: botID, FileID: randomNonZeroInt64(), Name: file.FileName}
 	const chunk = 512 << 10
@@ -1313,17 +1342,4 @@ func (r *Router) botAPIMediaMetadata(ctx context.Context, botID int64, media *do
 		media.VideoCover = cover.Photo
 	}
 	return media, nil
-}
-func (r *Router) botAPICheckPaidFile(ctx context.Context, userID int64, key string) error {
-	if r.deps.BotCommerce == nil {
-		return nil
-	}
-	allowed, err := r.deps.BotCommerce.CanReadPaidFile(ctx, userID, key)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return domain.ErrPaidMediaLocked
-	}
-	return nil
 }

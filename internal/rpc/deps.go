@@ -354,10 +354,10 @@ type BotsService interface {
 	GetBotCommands(ctx context.Context, botUserID int64) ([]domain.BotCommand, error)
 	SetBotInfo(ctx context.Context, botUserID int64, upd domain.BotInfoUpdate) (int, error)
 	GetBotInfo(ctx context.Context, botUserID int64) (name, about, description string, err error)
-	SetBotDefaultAdminRights(ctx context.Context, botUserID int64, broadcast bool, rights domain.ChannelAdminRights) (bool, error)
-	GetBotDefaultAdminRights(ctx context.Context, botUserID int64, broadcast bool) (domain.ChannelAdminRights, error)
 	SetBotMenuButton(ctx context.Context, botUserID int64, button domain.BotMenuButton) (int, error)
 	GetBotMenuButton(ctx context.Context, botUserID int64) (domain.BotMenuButton, error)
+	SetBotDefaultAdminRights(ctx context.Context, botUserID int64, broadcast bool, rights domain.ChannelAdminRights) (bool, error)
+	GetBotDefaultAdminRights(ctx context.Context, botUserID int64, broadcast bool) (domain.ChannelAdminRights, error)
 	// SetBotMenuButtonForUser 设置单个用户的专属菜单按钮（default = 删除，回落到全局默认）。
 	SetBotMenuButtonForUser(ctx context.Context, botUserID, userID int64, button domain.BotMenuButton) error
 	// BotMenuButtonForUser 返回 userID 看到的菜单按钮：专属按钮优先，否则全局默认。
@@ -988,12 +988,12 @@ type FilesService interface {
 	// getWebPagePreview 已解析过，则 echo 直接带 done 卡片（与官方一致），不依赖异步换卡。
 	LookupWebPage(ctx context.Context, rawURL string) (domain.MessageWebPage, bool)
 	CreateAvatarFromUpload(ctx context.Context, file domain.UploadedFileRef) (domain.Photo, error)
-	CreateAvatarVideoFromUpload(ctx context.Context, file domain.UploadedFileRef, videoStartTs float64) (domain.Photo, error)
-	CreateAvatarVideoMarkupFromUpload(ctx context.Context, file domain.UploadedFileRef, videoStartTs float64, markup domain.PhotoSize) (domain.Photo, error)
-	CreateAvatarMarkup(ctx context.Context, size domain.PhotoSize) (domain.Photo, error)
 	// 专用头像字节入口，保留 s/a/c renditions，不使用消息照片尺寸规则。
 	CreateAvatarFromBytes(ctx context.Context, data []byte) (domain.Photo, error)
 	CreateAvatarVideoFromBytes(ctx context.Context, data []byte, videoStartTs float64) (domain.Photo, error)
+	CreateAvatarVideoFromUpload(ctx context.Context, file domain.UploadedFileRef, videoStartTs float64) (domain.Photo, error)
+	CreateAvatarVideoMarkupFromUpload(ctx context.Context, file domain.UploadedFileRef, videoStartTs float64, markup domain.PhotoSize) (domain.Photo, error)
+	CreateAvatarMarkup(ctx context.Context, size domain.PhotoSize) (domain.Photo, error)
 	CreateDocumentFromUpload(ctx context.Context, file domain.UploadedFileRef, spec domain.DocumentSpec) (domain.Document, error)
 	CreateDocumentFromBytes(ctx context.Context, data []byte, spec domain.DocumentSpec) (domain.Document, error)
 	GetPhoto(ctx context.Context, id int64) (domain.Photo, bool, error)
@@ -1201,9 +1201,11 @@ type Deps struct {
 	BootstrapUpdates             store.BootstrapUpdateJobStore
 	BotAPIUpdates                store.BotAPIUpdateStore
 	BotCallbacks                 store.BotCallbackRegistryStore
+	GamesPassport                store.BotGamesPassportStore
 	BotCommerce                  store.BotCommerce
 	BotBroadcast                 store.BotBroadcastStore
-	GamesPassport                store.BotGamesPassportStore
+	BotGuestQueries              store.BotGuestQueryStore
+	BotInlineFeedback            store.BotInlineFeedbackStore
 	// PushDevices 保存 account.registerDevice 的设备推送登记（与 APNs 是否配置无关）。
 	// 为 nil 时 registerDevice/unregisterDevice 只回 true、不保存。
 	PushDevices             store.PushDeviceStore

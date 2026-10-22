@@ -105,13 +105,6 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 	}); err != nil || found {
 		return replay, err
 	}
-	if req.Date == 0 {
-		req.Date = int(time.Now().Unix())
-	}
-	senderReply, recipientReply, err := s.resolveMemoryReplyLocked(req)
-	if err != nil {
-		return domain.SendPrivateTextResult{}, err
-	}
 	commitPassport, releasePassport, err := s.preparePassportAuthorization(req)
 	if err != nil {
 		return domain.SendPrivateTextResult{}, err
@@ -125,6 +118,13 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 	}
 	if releaseGame != nil {
 		defer releaseGame()
+	}
+	if req.Date == 0 {
+		req.Date = int(time.Now().Unix())
+	}
+	senderReply, recipientReply, err := s.resolveMemoryReplyLocked(req)
+	if err != nil {
+		return domain.SendPrivateTextResult{}, err
 	}
 	events := s.updateEvents
 	if events == nil {
@@ -161,7 +161,7 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 		RandomID:             req.RandomID,
 		OwnerUserID:          req.SenderUserID,
 		Peer:                 domain.Peer{Type: domain.PeerTypeUser, ID: req.RecipientUserID},
-		From:                 domain.Peer{Type: domain.PeerTypeUser, ID: req.SenderUserID},
+		From:                 domain.Peer{Type: domain.PeerTypeUser, ID: domain.GuestSenderUserID(req.SenderUserID, req.GuestBotID)},
 		Date:                 req.Date,
 		Out:                  true,
 		Silent:               req.Silent,
@@ -181,6 +181,9 @@ func (s *MessageStore) sendPrivateTextLocked(req domain.SendPrivateTextRequest, 
 		Pts:                  nextPTS(req.SenderUserID),
 		// voice/round 在发送者副本上同样保持"未听"，由对端内容已读清除。
 		MediaUnread: req.Media.HasUnreadPayload() && req.SenderUserID != req.RecipientUserID,
+	}
+	if req.GuestBotID != 0 {
+		sender.GuestChatViaFrom = domain.GuestChatPeer(req.SenderUserID)
 	}
 	if req.SenderUserID == req.RecipientUserID {
 		sender.SavedPeer = domain.SavedPeerForSelfChat(req.SenderUserID, req.Forward)

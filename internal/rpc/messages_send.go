@@ -1085,6 +1085,9 @@ func appendMessageUserIDs(ids []int64, seen map[int64]struct{}, msg domain.Messa
 		add(msg.Forward.From.ID)
 	}
 	add(msg.ViaBotID)
+	if msg.GuestChatViaFrom.Type == domain.PeerTypeUser {
+		add(msg.GuestChatViaFrom.ID)
+	}
 	if msg.ReplyTo != nil && msg.ReplyTo.Peer.Type == domain.PeerTypeUser {
 		add(msg.ReplyTo.Peer.ID)
 	}

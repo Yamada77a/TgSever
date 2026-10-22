@@ -339,6 +339,7 @@ func (r *Router) preloadedMessageUsers(list domain.MessageList) []domain.User {
 func collectMessagePeerRefs(msg domain.Message, currentChannelID int64, userIDs, channelIDs map[int64]struct{}) {
 	addDomainPeerRef(msg.From, currentChannelID, userIDs, channelIDs)
 	addDomainPeerRef(msg.Peer, currentChannelID, userIDs, channelIDs)
+	addDomainPeerRef(msg.GuestChatViaFrom, currentChannelID, userIDs, channelIDs)
 	if msg.Forward != nil {
 		addDomainPeerRef(msg.Forward.From, currentChannelID, userIDs, channelIDs)
 		addDomainPeerRef(msg.Forward.SavedFrom, currentChannelID, userIDs, channelIDs)
@@ -433,6 +434,7 @@ func collectChannelMessagePeerRefs(msg domain.ChannelMessage, currentChannelID i
 		userIDs[msg.SenderUserID] = struct{}{}
 	}
 	addDomainPeerRef(msg.From, currentChannelID, userIDs, channelIDs)
+	addDomainPeerRef(msg.GuestChatViaFrom, currentChannelID, userIDs, channelIDs)
 	if msg.SendAs != nil {
 		addDomainPeerRef(*msg.SendAs, currentChannelID, userIDs, channelIDs)
 	}

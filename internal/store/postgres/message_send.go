@@ -416,6 +416,7 @@ func (s *MessageStore) sendPrivateTextOnce(ctx context.Context, req domain.SendP
 		ReplyMarkupJson:      replyMarkupJSON,
 		RichMessageJson:      richMessageJSON,
 		ViaBotID:             req.ViaBotID,
+		GuestchatViaFrom:     domain.GuestChatViaFromID(req.SenderUserID, req.GuestBotID),
 		BusinessConnectionID: req.BusinessConnectionID,
 		BusinessBotID:        req.BusinessBotID,
 		GroupedID:            req.GroupedID,
@@ -504,7 +505,7 @@ WHERE sender_user_id=$1 AND id=$2`, req.SenderUserID, pm.ID, sharedMediaJSON)
 		MessageSenderID:      req.SenderUserID,
 		PeerType:             string(domain.PeerTypeUser),
 		PeerID:               req.RecipientUserID,
-		FromUserID:           req.SenderUserID,
+		FromUserID:           domain.GuestSenderUserID(req.SenderUserID, req.GuestBotID),
 		MessageDate:          int32(req.Date),
 		Outgoing:             true,
 		Body:                 req.Message,
@@ -516,6 +517,7 @@ WHERE sender_user_id=$1 AND id=$2`, req.SenderUserID, pm.ID, sharedMediaJSON)
 		ReplyMarkupJson:      replyMarkupJSON,
 		RichMessageJson:      richMessageJSON,
 		ViaBotID:             req.ViaBotID,
+		GuestchatViaFrom:     domain.GuestChatViaFromID(req.SenderUserID, req.GuestBotID),
 		BusinessConnectionID: req.BusinessConnectionID,
 		BusinessBotID:        req.BusinessBotID,
 		GroupedID:            req.GroupedID,
@@ -582,7 +584,7 @@ WHERE sender_user_id=$1 AND id=$2`, req.SenderUserID, pm.ID, sharedMediaJSON)
 			MessageSenderID:      req.SenderUserID,
 			PeerType:             string(domain.PeerTypeUser),
 			PeerID:               req.SenderUserID,
-			FromUserID:           req.SenderUserID,
+			FromUserID:           domain.GuestSenderUserID(req.SenderUserID, req.GuestBotID),
 			MessageDate:          int32(req.Date),
 			Outgoing:             false,
 			Body:                 req.Message,
@@ -594,6 +596,7 @@ WHERE sender_user_id=$1 AND id=$2`, req.SenderUserID, pm.ID, sharedMediaJSON)
 			ReplyMarkupJson:      replyMarkupJSON,
 			RichMessageJson:      richMessageJSON,
 			ViaBotID:             req.ViaBotID,
+			GuestchatViaFrom:     domain.GuestChatViaFromID(req.SenderUserID, req.GuestBotID),
 			BusinessConnectionID: req.BusinessConnectionID,
 			BusinessBotID:        req.BusinessBotID,
 			GroupedID:            req.GroupedID,
@@ -680,10 +683,10 @@ WHERE sender_user_id = $1
 			return domain.SendPrivateTextResult{}, err
 		}
 	}
-	if err := commitBotBroadcastTx(ctx, tx, &result.SenderMessage, nil, false); err != nil {
+	if err := persistBusinessGameMessageTx(ctx, tx, req, sender.ID); err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
-	if err := persistBusinessGameMessageTx(ctx, tx, req, sender.ID); err != nil {
+	if err := commitBotBroadcastTx(ctx, tx, &result.SenderMessage, nil, false); err != nil {
 		return domain.SendPrivateTextResult{}, err
 	}
 

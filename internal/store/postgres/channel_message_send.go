@@ -106,6 +106,18 @@ func (s *ChannelStore) sendChannelMessageOnce(ctx context.Context, req domain.Se
 	if err != nil {
 		return domain.SendChannelMessageResult{}, err
 	}
+	if req.GuestBotID != 0 {
+		if !channel.Megagroup || channel.Broadcast || req.SendAs != nil {
+			return domain.SendChannelMessageResult{}, domain.ErrChannelWriteForbidden
+		}
+		bot, botErr := getChannelMemberByID(ctx, tx, req.ChannelID, req.GuestBotID)
+		if botErr != nil && !errors.Is(botErr, domain.ErrChannelPrivate) {
+			return domain.SendChannelMessageResult{}, botErr
+		}
+		if botErr == nil && (bot.Status == domain.ChannelMemberBanned || bot.Status == domain.ChannelMemberKicked || domain.ChannelBannedRightsBlockMessage(req, channel, bot, 0)) {
+			return domain.SendChannelMessageResult{}, domain.ErrChannelWriteForbidden
+		}
+	}
 	if req.SendAs != nil && req.SendAs.Type == domain.PeerTypeChannel {
 		banned, err := sqlcgen.New(tx).IsChannelSenderOwnerBanned(ctx, sqlcgen.IsChannelSenderOwnerBannedParams{ChannelID: req.ChannelID, SenderChannelID: req.SendAs.ID})
 		if err != nil {
@@ -245,7 +257,7 @@ func (s *ChannelStore) sendChannelMessageOnce(ctx context.Context, req domain.Se
 		ID:                msgID,
 		RandomID:          req.RandomID,
 		SenderUserID:      req.UserID,
-		From:              domain.Peer{Type: domain.PeerTypeUser, ID: req.UserID},
+		From:              domain.Peer{Type: domain.PeerTypeUser, ID: domain.GuestSenderUserID(req.UserID, req.GuestBotID)},
 		Date:              req.Date,
 		Post:              channel.Broadcast,
 		ShowMessageSender: channel.Broadcast && channel.SignatureProfiles && sendAs != nil && !(sendAs.Type == domain.PeerTypeChannel && sendAs.ID == channel.ID),
@@ -268,6 +280,9 @@ func (s *ChannelStore) sendChannelMessageOnce(ctx context.Context, req domain.Se
 		Action:            cloneChannelMessageAction(req.Action),
 		FromBoostsApplied: fromBoostsApplied,
 		Pts:               pts,
+	}
+	if req.GuestBotID != 0 {
+		msg.GuestChatViaFrom = domain.GuestChatPeer(req.UserID)
 	}
 	if discussionRef != nil {
 		msg.Replies = &domain.ChannelMessageReplies{Comments: true, ChannelID: discussionRef.ChannelID, RepliesPts: discussion.Event.Pts}
@@ -691,6 +706,13 @@ INSERT INTO channel_messages (
 		msg.Body, entities, reply, replyMsgID, replyPeerType, replyPeerID, replyTopID,
 		forward, discussionChannelID, discussionMessageID, action, msg.Pts, msg.Deleted, media, replyMarkup, richMessage, msg.TTLPeriod, msg.ExpiresAt, msg.PostAuthor, msg.ViaBotID, msg.FromBoostsApplied, msg.GroupedID, string(msg.SavedPeer.Type), msg.SavedPeer.ID, msg.PaidMessageStars, suggestedPost, sendSnapshot, requestFingerprint, msg.ShowMessageSender); err != nil {
 		return fmt.Errorf("insert channel message: %w", err)
+	}
+	if msg.GuestChatViaFrom.ID != 0 {
+		if err := sqlcgen.New(tx).SetChannelGuestMessageProvenance(ctx, sqlcgen.SetChannelGuestMessageProvenanceParams{
+			ChannelID: msg.ChannelID, MessageID: int32(msg.ID), GuestchatViaFrom: msg.GuestChatViaFrom.ID,
+		}); err != nil {
+			return fmt.Errorf("persist channel guest provenance: %w", err)
+		}
 	}
 	// 共享媒体索引(迁移 0118):创建即按媒体类别建索引行,供 messages.search 媒体标签页。
 	if err := insertChannelMediaIndexTx(ctx, tx, msg.ChannelID, msg.ID, msg.Date, msg.Media, msg.Entities); err != nil {

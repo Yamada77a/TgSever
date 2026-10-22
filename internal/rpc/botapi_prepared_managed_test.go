@@ -9,18 +9,14 @@ import (
 
 func TestPreparedManagedButtonUsesNativeCreateAndAuthorizedShare(t *testing.T) {
 	f := newBotAPIBridgeFixture(t)
-	requested := domain.BotRequestedWebViewButton{BotUserID: f.bot.ID, UserID: f.owner.ID, Text: "Create a bot", ButtonID: -42, PeerType: "managed_bot", MaxQuantity: 1, SuggestedName: "New Managed", SuggestedUsername: "suggested_child_bot"}
-	if _, err := f.bots.SaveRequestedWebViewButton(f.ctx, requested); err == nil {
-		t.Fatal("disabled manager saved a managed creation button")
-	}
+	call := inlineHTTP(t, f)
+	fields := map[string]any{"user_id": f.owner.ID, "button": map[string]any{"text": "Create a bot", "request_managed_bot": map[string]any{"request_id": -42, "suggested_name": "New Managed", "suggested_username": "suggested_child_bot"}}}
+	call("savePreparedKeyboardButton", fields, false)
 	if err := f.bots.SetCanManageBots(f.ctx, f.owner.ID, f.bot.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := f.bots.SaveRequestedWebViewButton(f.ctx, requested)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := saved.WebAppReqID
+	saved := call("savePreparedKeyboardButton", fields, true).(map[string]any)
+	id := saved["id"].(string)
 	button, err := f.router.onBotsGetRequestedWebViewButton(WithUserID(f.ctx, f.owner.ID), &tg.BotsGetRequestedWebViewButtonRequest{Bot: inputUser(f.bot), WebappReqID: id})
 	if err != nil {
 		t.Fatal(err)
