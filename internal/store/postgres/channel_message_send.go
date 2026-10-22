@@ -41,6 +41,13 @@ func (s *ChannelStore) sendChannelMessageWithHooks(ctx context.Context, req doma
 	var lastErr error
 	for attempt := 0; attempt < retryableChannelTxAttempts; attempt++ {
 		res, err := s.sendChannelMessageOnce(ctx, req, requestFingerprint, hooks)
+		if err == nil && res.Duplicate {
+			if _, ok := store.BotBroadcastFromContext(ctx); ok {
+				err = withTx(ctx, s.db, "complete channel broadcast replay", func(tx pgx.Tx) error {
+					return commitBotBroadcastTx(ctx, tx, nil, &res.Message, true)
+				})
+			}
+		}
 		if err == nil || !isRetryablePostgresTxError(err) || ctx.Err() != nil {
 			return res, err
 		}
@@ -371,6 +378,9 @@ WHERE channel_id = $1 AND user_id = $2 AND unread_mark`, req.ChannelID, req.User
 		if err := hooks.after(ctx, tx, txResult); err != nil {
 			return domain.SendChannelMessageResult{}, err
 		}
+	}
+	if err := commitBotBroadcastTx(ctx, tx, nil, &txResult.Message, false); err != nil {
+		return domain.SendChannelMessageResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return domain.SendChannelMessageResult{}, fmt.Errorf("commit send channel: %w", err)

@@ -164,6 +164,16 @@ func (s *MessageStore) sendPrivateTextWithHooks(ctx context.Context, req domain.
 	for attempt := 0; attempt < 2; attempt++ {
 		res, err = s.sendPrivateTextOnce(ctx, req, hooks)
 		if err == nil {
+			if res.Duplicate {
+				if _, ok := store.BotBroadcastFromContext(ctx); ok {
+					err = withTx(ctx, s.db, "complete broadcast replay", func(tx pgx.Tx) error {
+						return commitBotBroadcastTx(ctx, tx, &res.SenderMessage, nil, true)
+					})
+					if err != nil {
+						return domain.SendPrivateTextResult{}, err
+					}
+				}
+			}
 			return res, nil
 		}
 		if !isMessageBoxDuplicateKey(err) || attempt > 0 {
@@ -190,6 +200,14 @@ func (s *MessageStore) sendPrivateTextOnce(ctx context.Context, req domain.SendP
 		req.Date = int(time.Now().Unix())
 	}
 	plainHotPath := plainPrivateSendHotPath(req, hooks)
+	if _, broadcast := store.BotBroadcastFromContext(ctx); broadcast {
+		if req.RecipientBlocked {
+			return domain.SendPrivateTextResult{}, domain.ErrBotBroadcastRecipientBlocked
+		}
+		// The batch/plain shortcut commits without aggregate hooks. Broadcast
+		// quota, receipt and fee must share this message's full transaction.
+		plainHotPath = false
+	}
 	var entities, replyMarkupJSON, richMessageJSON []byte
 	if !plainHotPath {
 		var err error
@@ -652,6 +670,9 @@ WHERE sender_user_id = $1
 		if err := hooks.after(ctx, tx, result); err != nil {
 			return domain.SendPrivateTextResult{}, err
 		}
+	}
+	if err := commitBotBroadcastTx(ctx, tx, &result.SenderMessage, nil, false); err != nil {
+		return domain.SendPrivateTextResult{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
