@@ -177,6 +177,9 @@ func (r *Router) botInvoicePaymentForm(ctx context.Context, viewerID int64, peer
 	if err != nil {
 		return nil, err
 	}
+	if err := r.ensureBotAccess(ctx, invoice.BotUserID, viewerID); err != nil {
+		return nil, err
+	}
 	if invoice.Paid {
 		return nil, tgerr.New(400, "INVOICE_ALREADY_PAID")
 	}

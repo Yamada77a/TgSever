@@ -61,6 +61,9 @@ func (r *Router) onMessagesGetBotCallbackAnswer(ctx context.Context, req *tg.Mes
 	}
 	callback.ClientSession = clientSessionMetadataFromContext(ctx)
 	botUserID := callback.BotUserID
+	if err := r.ensureBotAccess(ctx, botUserID, userID); err != nil {
+		return nil, err
+	}
 
 	// 内置（进程内）service bot 分支：@verifybot 这类 bot 没有 MTProto session、也没有
 	// Bot API 消费者，走下面的「推 updateBotCallbackQuery + 挂起 25s」必然超时回

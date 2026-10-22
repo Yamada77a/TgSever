@@ -642,10 +642,15 @@ func (s *BotStore) SetAttachMenuState(_ context.Context, state domain.BotAttachM
 }
 
 func (s *BotStore) SaveRequestedWebViewButton(_ context.Context, button domain.BotRequestedWebViewButton) error {
-	if button.BotUserID == 0 || button.UserID == 0 || button.WebAppReqID == "" || button.ButtonID == 0 {
+	if button.BotUserID == 0 || button.UserID == 0 || button.WebAppReqID == "" || button.ExpiresAt.IsZero() {
 		return domain.ErrBotRequestedButtonInvalid
 	}
+	button.PeerFilter = cloneRequestedButtonFilter(button.PeerFilter)
 	s.mu.Lock()
+	if _, exists := s.requestButtons[requestedButtonKey{botUserID: button.BotUserID, userID: button.UserID, reqID: button.WebAppReqID}]; exists {
+		s.mu.Unlock()
+		return domain.ErrBotRequestedButtonInvalid
+	}
 	s.requestButtons[requestedButtonKey{botUserID: button.BotUserID, userID: button.UserID, reqID: button.WebAppReqID}] = button
 	s.mu.Unlock()
 	return nil
@@ -663,6 +668,7 @@ func (s *BotStore) GetRequestedWebViewButton(_ context.Context, botUserID, userI
 	if !ok {
 		return domain.BotRequestedWebViewButton{}, false, nil
 	}
+	button.PeerFilter = cloneRequestedButtonFilter(button.PeerFilter)
 	return button, true, nil
 }
 
@@ -841,4 +847,36 @@ func sortAttachMenuBots(list []domain.BotAttachMenuBot) {
 			list[j], list[j-1] = list[j-1], list[j]
 		}
 	}
+}
+
+func cloneRequestedButtonFilter(in *domain.BotRequestPeerFilter) *domain.BotRequestPeerFilter {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	if in.UserAdminRights != nil {
+		rights := *in.UserAdminRights
+		out.UserAdminRights = &rights
+	}
+	if in.BotAdminRights != nil {
+		rights := *in.BotAdminRights
+		out.BotAdminRights = &rights
+	}
+	return &out
+}
+
+func (s *BotStore) ConsumeRequestedWebViewButton(_ context.Context, botUserID, userID int64, id string) (domain.BotRequestedWebViewButton, bool, error) {
+	key := requestedButtonKey{botUserID: botUserID, userID: userID, reqID: id}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	button, ok := s.requestButtons[key]
+	if !ok {
+		return domain.BotRequestedWebViewButton{}, false, nil
+	}
+	delete(s.requestButtons, key)
+	if !button.ExpiresAt.After(time.Now()) {
+		return domain.BotRequestedWebViewButton{}, false, nil
+	}
+	button.PeerFilter = cloneRequestedButtonFilter(button.PeerFilter)
+	return button, true, nil
 }

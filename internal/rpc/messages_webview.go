@@ -97,6 +97,9 @@ func (r *Router) onMessagesRequestSimpleWebView(ctx context.Context, req *tg.Mes
 	if !found || !bot.Bot {
 		return nil, botInvalidErr()
 	}
+	if err := r.ensureBotAccess(ctx, bot.ID, userID); err != nil {
+		return nil, err
+	}
 	urlValue, ok := req.GetURL()
 	if !ok || validateInlineWebURL(urlValue, true) != nil {
 		return nil, urlInvalidErr()
@@ -381,6 +384,9 @@ func (r *Router) sendWebViewDomainResultMessage(ctx context.Context, botID int64
 	if !ok {
 		return queryIDInvalidErr()
 	}
+	if err := r.ensureBotAccess(ctx, botID, session.UserID); err != nil {
+		return err
+	}
 	if err := r.checkSendRateLimit(ctx, session.UserID, 1); err != nil {
 		return err
 	}
@@ -427,6 +433,9 @@ func (r *Router) webViewBotFromInput(ctx context.Context, userID int64, input tg
 	}
 	if !found || !bot.Bot {
 		return domain.User{}, domain.BotProfile{}, botInvalidErr()
+	}
+	if err := r.ensureBotAccess(ctx, bot.ID, userID); err != nil {
+		return domain.User{}, domain.BotProfile{}, err
 	}
 	profile, found, err := r.deps.Bots.BotInfo(ctx, bot.ID)
 	if err != nil {
@@ -487,6 +496,9 @@ func (r *Router) webViewBotAppFromInput(ctx context.Context, userID int64, input
 		if !found || !bot.Bot {
 			return domain.User{}, domain.BotProfile{}, domain.BotApp{}, nil, "", botAppInvalidErr()
 		}
+		if err := r.ensureBotAccess(ctx, bot.ID, userID); err != nil {
+			return domain.User{}, domain.BotProfile{}, domain.BotApp{}, nil, "", err
+		}
 		profile, found, err := r.deps.Bots.BotInfo(ctx, bot.ID)
 		if err != nil {
 			return domain.User{}, domain.BotProfile{}, domain.BotApp{}, nil, "", internalErr()
@@ -532,6 +544,9 @@ func (r *Router) webViewBotAppOwnerFromInput(ctx context.Context, userID int64, 
 	}
 	if !found || !bot.Bot {
 		return domain.User{}, domain.BotProfile{}, botAppBotInvalidErr()
+	}
+	if err := r.ensureBotAccess(ctx, bot.ID, userID); err != nil {
+		return domain.User{}, domain.BotProfile{}, err
 	}
 	profile, found, err := r.deps.Bots.BotInfo(ctx, bot.ID)
 	if err != nil {

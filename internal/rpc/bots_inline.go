@@ -60,6 +60,9 @@ func (r *Router) onMessagesGetInlineBotResults(ctx context.Context, req *tg.Mess
 	if !found || !bot.Bot {
 		return nil, botInvalidErr()
 	}
+	if err := r.ensureBotAccess(ctx, bot.ID, userID); err != nil {
+		return nil, err
+	}
 	profile, found, err := r.deps.Bots.BotInfo(ctx, bot.ID)
 	if err != nil {
 		return nil, internalErr()
@@ -214,6 +217,9 @@ func (r *Router) onMessagesSendInlineBotResult(ctx context.Context, req *tg.Mess
 	results, result, ok := r.inlines.resultForSendContext(ctx, r.clock.Now(), userID, req.QueryID, req.ID)
 	if !ok {
 		return nil, inlineResultExpiredErr()
+	}
+	if err := r.ensureBotAccess(ctx, results.BotUserID, userID); err != nil {
+		return nil, err
 	}
 	if !r.inlineResultsAllowPeer(ctx, userID, results, peer) {
 		return nil, peerIDInvalidErr()
